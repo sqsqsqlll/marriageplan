@@ -1,0 +1,13 @@
+# 匯出的備份檔與其他 JSON
+*.json
+
+# 系统与编辑器杂物
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# 本地预览产物
+*.log
+backup/
