@@ -30,17 +30,15 @@ python3 -m http.server 8080
 
 ## 上线（GitHub Pages）
 
-工作流已经配好，第一次上线只要点一步：
-
-**Settings → Pages → Build and deployment → Source** 选 **GitHub Actions**。
-
-之后每次推送到默认分支 `claude/inspiring-pascal-da87o8` 都会自动重新部署，
-站点地址是 <https://sqsqsqlll.github.io/marriageplan/>；
+推送到默认分支 `main/planpage` 就会自动部署，不用手动开 Pages ——
+工作流里 `actions/configure-pages` 带了 `enablement: true`，仓库没开 Pages 会自动开。
 也可以在 **Actions → Deploy to GitHub Pages → Run workflow** 手动触发。
 
-> 注意：`github-pages` 环境默认只允许**默认分支**部署，所以工作流盯的是默认分支。
-> 以后如果把默认分支改名（例如改成 `main`），记得同步改
-> `.github/workflows/deploy-pages.yml` 里 `on.push.branches` 的分支名。
+站点地址：<https://sqsqsqlll.github.io/marriageplan/>
+
+> ⚠️ 改默认分支名字的时候，记得同步改 `.github/workflows/deploy-pages.yml` 里
+> `on.push.branches` 的分支名 —— 两边对不上，推了也不会部署。
+> 盯默认分支是因为 `github-pages` 环境默认只允许默认分支部署。
 
 部署前工作流会先体检：三个文件都在且非空、`index.html` 没被截断且确实引用了
 另外两个文件、`app.js` 语法能过 —— 任何一项不过就中止部署，不会把坏页面推上线。
@@ -73,7 +71,7 @@ python3 -m http.server 8080
 
 ```bash
 git revert <commit>
-git push origin claude/inspiring-pascal-da87o8
+git push origin main/planpage
 ```
 
 Pages 会按新的默认分支内容重新部署。
