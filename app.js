@@ -1,0 +1,1877 @@
+(function(){
+"use strict";
+
+/* ================= 常數 ================= */
+var KEY='wedding_plan_v1';
+var FX_DEFAULT=4.70; /* 2026 年 9 月 CNY→TWD 約 4.70 */
+var OWNERS=['毛','哈利','雙方','男方父母','女方父母','親友','伴郎伴娘','供應商','待定'];
+var CATS=['證件登記','場地餐飲','婚紗禮服','妝造','攝影','錄影','婚慶佈置','主持','喜糖伴手禮','三金對戒','喜帖賓客','習俗禮節','婚車交通','住宿接待','蜜月','其他'];
+var STATUS=['未開始','進行中','待確認','已完成','已取消'];
+var VCATS=['跟拍','婚紗/旅拍','婚紗禮服','秀禾/旗袍','妝造跟妝','攝影','錄影','主持','場地酒店','婚慶統籌','花藝佈置','喜糖伴手禮','喜帖','三金對戒','婚車','樂隊/表演','其他'];
+var DIMS=[{k:'work',l:'作品匹配',w:.35},{k:'price',l:'價格',w:.20},{k:'comm',l:'溝通',w:.20},{k:'rep',l:'口碑',w:.15},{k:'deal',l:'合約條款',w:.10}];
+var WD=['日','一','二','三','四','五','六'];
+
+var MILESTONES=[
+  {d:'2026-10-10',t:'廣州領證',p:'廣州 · 涉台婚姻登記處',ms:'gz'},
+  {d:'2027-03-18',t:'台灣登記',p:'台灣 · 戶政事務所',ms:'tw'},
+  {d:'2027-05-16',t:'廣州婚宴',p:'廣州 · 宴會廳',ms:'bq'}
+];
+var MS_META={
+  gz:{n:'廣州領證',links:[['證件與手續','plan','docs'],['習俗對齊','plan','customs']]},
+  tw:{n:'台灣登記',links:[['證件與手續','plan','docs'],['預算與花費','budget',null]]},
+  bq:{n:'廣州婚宴',links:[['婚宴流程細節','banquet','dayplan'],['賓客名單','banquet','guests'],['供應商篩選池','vendors',null]]}
+};
+
+var GROUPS=[
+  {k:'dash',n:'總覽'},
+  {k:'plan',n:'所有事項',subs:[{k:'rundown',n:'事件安排'},{k:'customs',n:'習俗對齊'},{k:'docs',n:'證件準備'}]},
+  {k:'banquet',n:'婚宴',subs:[{k:'dayplan',n:'流程'},{k:'guests',n:'賓客名單'},{k:'contacts',n:'應急通訊'}]},
+  {k:'vendors',n:'供應商篩選池'},
+  {k:'budget',n:'預算與花費'}
+];
+
+var TITLES={rundown:'事件安排',docs:'證件準備',customs:'習俗對齊',ideas:'想法記錄',guests:'賓客名單',dayplan:'婚宴流程',contacts:'應急通訊',vendors:'供應商篩選池',budget:'預算與花費'};
+var HINTS={
+  rundown:'按天摺疊。點開一天，裡面一行一件事，做完打勾。每件事還能再展開，填細節和拆子步驟。',
+  docs:'兩岸領證的材料有時效（單身證明通常三個月內有效），公證和驗證都要排隊，寧可早辦。清單以登記機關當次公告為準。',
+  customs:'過大禮、聘金、嫁妝、敬茶最容易兩家想的不一樣。先各自問清自己爸媽，再由毛和哈利互相轉達，別讓長輩直接談。',
+  ideas:'想到什麼先扔進來。特別是「不做」那一欄——明確放棄什麼，比列一堆想做的更省錢省力。',
+  guests:'男女方分開統計，先各自拉名單再合併。桌次留到四月回覆差不多了再排。',
+  dayplan:'婚宴當天的分鐘級流程。定稿後印給統籌、攝影、化妝師和雙方父母各一份。',
+  contacts:'婚禮當天手忙腳亂時，能一屏找到所有人的電話。',
+  vendors:'同一類至少比三家。五個維度毛和哈利各自打分，兩人分數差得多的地方，就是該坐下來聊的地方。',
+  budget:'收入列記禮金和父母贊助，支出列記花費。金額一律填人民幣，台幣依匯率自動換算。'
+};
+
+/* ================= 表結構 ================= */
+function c(k,l,t,o,w){return {k:k,l:l,t:t||'text',o:o||null,w:w||null};}
+var SCHEMAS={
+  dayplan:{cols:[c('time','時間','text',null,86),c('lucky','吉時','text',null,80),c('item','環節','text',null,200),c('place','地點','text',null,146),c('who','參與人','text',null,146),c('owner','負責人','select',OWNERS,98),c('need','物料/供應商','text',null,176),c('note','備註','text',null,196)]},
+  ideas:{cols:[c('date','記錄日','date',null,130),c('type','性質','select',['靈感','要做','不做','待決策','已決定','踩坑'],98),c('title','標題','text',null,196),c('body','內容','textarea',null,320),c('by','提出人','select',OWNERS,98),c('link','參考連結','text',null,166),c('status','狀態','select',['待議','採納','擱置','已落地'],90)]},
+  budget:{cols:[c('cat','類別','select',CATS,112),c('item','項目','text',null,196),c('kind','收支','select',['支出','收入'],78),c('plan','預算 ¥','number',null,96),c('real','實際 ¥','number',null,96),c('twd','台幣 NT$','twd',null,104),c('paid','已付 ¥','number',null,96),c('payer','付款/收款方','select',OWNERS,108),c('to','對方/供應商','text',null,146),c('status','狀態','select',['未付','定金已付','尾款待付','已結清','待收'],102),c('note','備註','text',null,176)]},
+  guests:{cols:[c('side','方','select',['男方','女方','共同'],74),c('name','姓名','text',null,108),c('rel','與主人關係','text',null,126),c('liaison','對接人','select',OWNERS,98),c('go','出席','select',['待定','出席','不出席','線上'],86),c('n','人數','number',null,68),c('table','桌次','text',null,68),c('gift','禮金 ¥','number',null,92),c('twd','折台幣','twd',null,96),c('back','回禮/伴手禮','text',null,112),c('tel','聯絡方式','text',null,136),c('note','備註','text',null,156)]},
+  docs:{cols:[c('item','事項','text',null,186),c('who','適用方','select',['毛','哈利','雙方'],86),c('need','所需材料','textarea',null,300),c('org','辦理機構','text',null,156),c('due','截止/時效','text',null,136),c('owner','負責人','select',OWNERS,96),c('status','狀態','select',STATUS,92),c('note','備註','text',null,176)]},
+  customs:{cols:[c('item','環節','text',null,146),c('gz','廣東習俗','textarea',null,246),c('tw','台灣習俗','textarea',null,246),c('deal','共識方案','textarea',null,246),c('owner','協調人','select',OWNERS,96),c('status','狀態','select',['待談','溝通中','已共識','擱置'],92)]},
+  contacts:{cols:[c('name','姓名','text',null,116),c('role','角色','text',null,146),c('from','所屬','select',['男方','女方','供應商','場地','其他'],92),c('tel','電話/微信/LINE','text',null,176),c('note','備註','text',null,236)]}
+};
+
+/* ================= 預設資料 ================= */
+var DEFAULT_RUNDOWN=[
+['2026-09-12','','三個日子與雙方家長同步確認','習俗禮節','雙方','雙方父母','','進行中','10/10 領證、3/18 台灣登記、5/16 婚宴，先把日子在兩家過一遍，避免後面反覆。',[]],
+['2026-09-14','','台灣單身證明：申請並送海基會公證','證件登記','哈利','台灣戶政/海基會','','進行中','這條鏈路最長，也最容易卡住。證明通常只有三個月效期，倒推 10/10 現在就得動。',['台灣戶政申請單身證明','找民間公證人公證','送海基會驗證','寄大陸查證 / 確認到件']],
+['2026-09-18','','向廣州涉台婚姻登記處確認材料清單並預約','證件登記','毛','登記處','','未開始','電話或線上都行，重點問：需要哪些正本、是否要預約、台灣方文件要什麼形式。清單以當次答覆為準。',['打電話確認清單','確認是否需預約','記錄接線人和日期']],
+['2026-09-25','','拉總預算框架，談雙方家庭出資方式','其他','雙方','雙方父母','','未開始','先談總盤和出資方式，不談細項。細項談早了只會吵。',[]],
+['2026-09-28','','建群組：雙方 + 雙方父母','其他','雙方','','','未開始','只發大事和確認結果，日常拉扯留在兩人之間。',[]],
+['2026-10-05','','領證當天著裝、妝造、跟拍確認','攝影','雙方','','','未開始','輕便為主，登記處排隊時間不確定。',[]],
+['2026-10-08','','材料最終核對 + 影本備份','證件登記','雙方','','','未開始','正本、影本、電子掃描檔各一份。',['正本清點','影本','手機存掃描檔']],
+['2026-10-10','09:00','廣州領證 · 民政局辦理結婚登記','證件登記','雙方','登記處','','未開始','當天帶齊正本，留足排隊時間。預約時段、需要帶的東西、誰陪同、之後去哪裡吃飯，都寫在這裡。',['正本文件清點','出門前再確認一次預約','拍照留念 / 跟拍'],'gz'],
+['2026-10-10','12:00','兩家小聚午宴','場地餐飲','毛','餐廳','','未開始','約兩桌，提前訂。',[]],
+['2026-10-15','','結婚證公證（供台灣戶政使用）','證件登記','毛','公證處','','未開始','公證之後還要海基會驗證，留出郵寄和排隊時間。',['公證處辦理','海基會驗證','確認台灣戶政認可形式']],
+['2026-10-25','','定婚禮風格、主色調、想要的感覺','婚慶佈置','雙方','','','未開始','各自存 30 張參考圖，交換看，取交集。',[]],
+['2026-11-02','','場地考察第一輪（3 家起）','場地餐飲','雙方','','','未開始','每家都問：最低桌數、加桌怎麼算、服務費、能否自帶酒水、開瓶費、場地時段。',['列候選名單','約看場','逐家問清六個問題','拍照記錄']],
+['2026-11-15','','試菜，定酒店/宴會廳並付訂金','場地餐飲','雙方','酒店業務','','未開始','5/16 是週日，好日子檔期緊，這是第一個必須鎖的。',[]],
+['2026-11-22','','婚紗/旅拍團隊比價定檔','攝影','雙方','','','未開始','要看完整一套片，不看精修集錦。',[]],
+['2026-11-30','','婚紗禮服初選（租還是買）','婚紗禮服','毛','','','未開始','含秀禾和敬酒服，一起想。',[]],
+['2026-12-06','','拍婚紗照','攝影','雙方','','','未開始','',[]],
+['2026-12-14','','當日攝影 + 錄影團隊定檔付訂金','錄影','雙方','','','未開始','攝影錄影分開定，別為了包套價將就其中一個。',[]],
+['2026-12-20','','主持人面談定檔','主持','雙方','','','未開始','必須先聊過再定，氣場不合會毀掉整場。',[]],
+['2026-12-28','','兩家習俗對齊會：聘金、嫁妝、過大禮、敬茶','習俗禮節','雙方','雙方父母','','未開始','對照「習俗對齊」表逐項過，談完就把共識寫進去。',[]],
+['2027-01-10','','三金 / 對戒選購','三金對戒','雙方','女方父母','','未開始','刻字和改圈都要時間，別拖到四月。',[]],
+['2027-01-17','','婚慶統籌團隊定檔','婚慶佈置','雙方','','','未開始','確認是否含當天督導，這是兩回事。',[]],
+['2027-01-24','','賓客名單第一版（男女方各自拉）','喜帖賓客','雙方','雙方父母','','未開始','先粗後精，父母那部分一定要他們自己寫。',[]],
+['2027-02-01','','台灣登記材料：結婚證公證 + 海基會驗證','證件登記','哈利','海基會/戶政','','未開始','留足郵寄和排隊時間。',[]],
+['2027-02-08','','訂台灣行程：機票、住宿、拜訪安排','其他','雙方','','','未開始','',[]],
+['2027-02-14','','喜帖設計定稿（紙本 + 電子）','喜帖賓客','雙方','','','未開始','',[]],
+['2027-02-22','','伴手禮、喜糖選樣試吃','喜糖伴手禮','雙方','','','未開始','按人頭多留 10%。',[]],
+['2027-03-08','','抵台、家庭見面安排','習俗禮節','雙方','哈利父母','','未開始','',[]],
+['2027-03-18','09:00','台灣登記 · 戶政事務所辦理結婚登記','證件登記','雙方','戶政事務所','','未開始','經驗證的大陸結婚證明文件、雙方身分證件。行程、住哪、誰陪同、當天之後的安排寫在這裡。',['文件備齊並確認驗證完成','確認是否需兩人同時到場','當天行程與交通'],'tw'],
+['2027-03-20','','台灣家宴 / 文定相關安排','場地餐飲','哈利','哈利父母','','未開始','',[]],
+['2027-03-28','','婚紗二次試穿、配飾與鞋確認','婚紗禮服','毛','','','未開始','',[]],
+['2027-04-05','','發喜帖（紙本給長輩，電子給同輩）','喜帖賓客','雙方','雙方父母','','未開始','發出即開始統計回覆。',[]],
+['2027-04-10','','定菜單、酒水、預估桌數','場地餐飲','雙方','酒店業務','','未開始','',[]],
+['2027-04-15','','佈置方案與花藝定稿','婚慶佈置','雙方','','','未開始','確認進場時間和撤場安排。',[]],
+['2027-04-18','','迎親、敬茶流程與紅包準備','習俗禮節','雙方','雙方父母','','未開始','紅包面額和數量單獨列一張清單。',['確認敬茶順序','列紅包面額清單','準備小面額堵門紅包']],
+['2027-04-20','','試妝定妝','妝造','毛','','','未開始','帶當天的配飾一起去試。',[]],
+['2027-04-25','','當日流程 + 人員分工表定稿','婚慶佈置','雙方','統籌','','未開始','對照「婚宴 / 流程細節」表。',[]],
+['2027-04-28','','賓客回覆統計、桌次初稿','喜帖賓客','雙方','雙方父母','','未開始','',[]],
+['2027-05-04','','彩排走位（儀式流程 + 音樂）','婚慶佈置','雙方','統籌','','未開始','',[]],
+['2027-05-08','','最終桌數、菜單、酒水報給酒店','場地餐飲','雙方','酒店業務','','未開始','一般提前 7 天截止，逾期改不了。',[]],
+['2027-05-10','','收禮台安排：登記人、禮金簿、筆、找零','習俗禮節','雙方','親友','','未開始','兩人一崗，一人收一人記。',['定登記人','禮金簿和筆','準備找零','貴重物品保管人']],
+['2027-05-12','','應急包打包','其他','毛','伴娘','','未開始','針線、OK 繃、備用絲襪、行動電源、胃藥、濕紙巾、雙面膠、備用口紅。',['針線包 / 雙面膠','OK 繃 / 胃藥','備用絲襪','行動電源','補妝包']],
+['2027-05-14','','各供應商到場時間逐一電話確認','婚慶佈置','雙方','統籌','','未開始','包括司機、化妝師、攝影、錄影、花藝、主持。',[]],
+['2027-05-15','','迎親路線、車隊、長輩接送確認','婚車交通','哈利','伴郎','','未開始','算上早高峰，留 30 分鐘緩衝。',[]],
+['2027-05-16','','廣州婚宴 · 當日','場地餐飲','雙方','統籌','','未開始','分鐘級流程在「婚宴 / 流程細節」，這裡放當天的總覽：誰幾點到、東西誰帶、應急聯絡人、備案。',['流程表印三份','各供應商到場時間確認','應急包與紅包','貴重物品保管人'],'bq'],
+['2027-05-18','','供應商尾款結算與致謝','其他','雙方','','','未開始','',[]],
+['2027-05-22','','選片、相冊、答謝訊息','攝影','雙方','','','未開始','',[]],
+['2027-05-28','','蜜月出行','蜜月','雙方','','','未開始','提前請好婚假。',[]]
+];
+
+var DEFAULT_DAYPLAN=[
+['05:30','','新娘起床、早餐、開始妝造','女方家/酒店','毛、伴娘、化妝師','毛','化妝師','空腹上妝容易低血糖，一定吃點東西'],
+['06:30','','新郎起床、著裝','男方家/酒店','哈利、伴郎','哈利','',''],
+['07:00','','攝影錄影到位，拍準備花絮','雙方','攝影、錄影','雙方','攝影團隊','戒指、婚鞋、喜帖提前擺好'],
+['07:40','','迎親車隊集合出發','男方家','哈利、伴郎、車隊','哈利','婚車','車頭車尾各留一人'],
+['08:08','吉時','到達女方家，堵門環節','女方家','雙方、伴郎伴娘','伴郎伴娘','','小面額紅包備足'],
+['08:38','','找鞋、改口、女方敬茶','女方家','雙方、女方父母','女方父母','','茶具、跪墊'],
+['09:18','吉時','出門上車','女方家','雙方','雙方','','按吉時出門'],
+['10:08','','到達男方家，男方敬茶','男方家','雙方、男方父母','男方父母','',''],
+['11:00','','簽到台就位，收禮台開台','宴會廳','親友、登記人','親友','場地','禮金簿、筆、找零、伴手禮'],
+['11:30','','賓客入場、迎賓','宴會廳門口','雙方、雙方父母','雙方','',''],
+['12:08','吉時','儀式開始','宴會廳','全體','統籌','主持、音響','入場音樂提前測一次'],
+['12:40','','致詞、切蛋糕','宴會廳','雙方、雙方父母','主持','',''],
+['13:00','','換敬酒服，第一輪敬酒（主桌起）','宴會廳','雙方','統籌','','留一人拿托盤和水'],
+['14:00','','送客、合影','門口','全體','雙方','攝影',''],
+['14:40','','清點禮金物品，供應商撤場','宴會廳','親友、統籌','親友','','貴重物品專人保管'],
+['18:00','','家宴 / 答謝（如有）','待定','近親','雙方','','']
+];
+
+var DEFAULT_DOCS=[
+['廣州涉台結婚登記','雙方','大陸方：身分證、戶口簿；台灣方：台灣居民來往大陸通行證、台灣身分證、經海基會公證並轉遞查證的三個月內單身證明。以登記機關當次公告為準。','廣州市民政局涉外涉港澳台婚姻登記處','2026-10-10 前備齊','雙方','進行中','務必先電話或線上確認最新清單與是否需預約'],
+['台灣單身證明公證與驗證','哈利','台灣戶政申請 → 民間公證人公證 → 海基會驗證 → 寄大陸查證','台灣戶政 / 海基會','三個月有效期，倒推 10/10','哈利','進行中','鏈路最長，最先啟動'],
+['結婚證公證（供台灣使用）','雙方','大陸結婚證 → 公證處辦理公證書 → 海基會驗證','大陸公證處 / 海基會','2027-03-18 前完成','毛','未開始',''],
+['台灣結婚登記','雙方','經驗證的大陸結婚證明文件、雙方身分證件、戶籍資料','台灣戶政事務所','2027-03-18','哈利','未開始','確認是否需兩人同時到場'],
+['大陸配偶赴台相關證件/簽註','毛','入台證件、面談安排等','移民署 / 相關窗口','視登記後流程','雙方','未開始','政策會調整，以官方公告為準'],
+['婚假申請','雙方','各自公司流程','公司 HR','領證後 / 婚宴前','雙方','未開始','注意婚假是否需連休'],
+['婚後證件更新','雙方','戶口簿婚姻狀況、保險受益人、緊急聯絡人等','各機構','婚後三個月內','雙方','未開始','']
+];
+
+var DEFAULT_CUSTOMS=[
+['提親 / 見面禮','','','','雙方','待談'],
+['過大禮（聘禮）','','','','雙方父母','待談'],
+['聘金金額與是否回禮','','','','雙方','待談'],
+['嫁妝 / 壓箱','','','','女方父母','待談'],
+['三金 / 首飾由誰準備','','','','雙方','待談'],
+['台灣文定（訂婚）是否辦、何時辦','','','','哈利','待談'],
+['喜餅 / 喜糖數量與形式','','','','雙方','待談'],
+['敬茶順序與紅包','','','','雙方父母','待談'],
+['婚宴由誰主辦、桌數如何分','','','','雙方父母','待談'],
+['禮金歸屬與記帳方式','','','','雙方','待談'],
+['回門 / 歸寧安排','','','','雙方','待談'],
+['忌諱事項（生肖、顏色、字眼等）','','','','雙方','待談']
+];
+
+var DEFAULT_BUDGET=[
+['場地餐飲','宴會廳酒席','支出','雙方','','未付','按桌數×桌價，問清服務費'],
+['場地餐飲','酒水飲料','支出','雙方','','未付','能否自帶、開瓶費'],
+['婚紗禮服','婚紗 / 秀禾 / 敬酒服','支出','毛','','未付',''],
+['妝造','當日跟妝','支出','毛','','未付','含試妝、改妝次數'],
+['攝影','當日攝影','支出','雙方','','未付','含加班費上限'],
+['錄影','當日錄影','支出','雙方','','未付','交付時間與形式'],
+['攝影','婚紗照 / 旅拍 / 跟拍','支出','雙方','','未付',''],
+['主持','司儀','支出','雙方','','未付',''],
+['婚慶佈置','統籌 + 當天督導','支出','雙方','','未付',''],
+['婚慶佈置','花藝與現場佈置','支出','雙方','','未付',''],
+['三金對戒','三金','支出','男方父母','','未付',''],
+['三金對戒','對戒','支出','雙方','','未付',''],
+['喜糖伴手禮','喜糖 / 伴手禮','支出','雙方','','未付','按人頭 +10%'],
+['喜帖賓客','喜帖','支出','雙方','','未付',''],
+['婚車交通','婚車 / 車隊','支出','哈利','','未付',''],
+['住宿接待','外地親友住宿','支出','雙方','','未付',''],
+['證件登記','公證、驗證、往返台灣','支出','雙方','','未付','這項是台幣支出為主，填人民幣等值即可'],
+['習俗禮節','聘金 / 禮金支出','支出','男方父母','','未付',''],
+['蜜月','蜜月旅行','支出','雙方','','未付',''],
+['其他','機動預備金（建議總預算 10%）','支出','雙方','','未付','超預算的緩衝'],
+['其他','男方禮金收入','收入','男方父母','','待收',''],
+['其他','女方禮金收入','收入','女方父母','','待收',''],
+['其他','父母贊助','收入','雙方父母','','待收','']
+];
+
+var DEFAULT_IDEAS=[
+['2026-09-09','要做','兩人各寫「最在意的三件事」','各自寫下婚禮裡最不能將就的三件事，交換看。預算和精力優先砸在這六件事上，其餘按標準配置走。','雙方','','待議'],
+['2026-09-09','不做','先把不做的清單立起來','例如：不做冗長的長官致詞、不做鬧伴娘的遊戲、不做每桌單獨敬酒、不請不熟的人。想清楚不做什麼，比想做什麼更省錢。','雙方','','待議'],
+['2026-09-09','待決策','婚宴風格：中式儀式感還是輕鬆派對','影響佈置、著裝、流程長度和預算分配，建議 10 月底前定。','雙方','','待議']
+];
+
+var DEFAULT_PRINCIPLES=
+'決策原則（可隨時改寫）\n\n'+
+'一、順序\n'+
+'先定不可逆、檔期稀缺的：場地、攝影錄影、主持、婚紗。再定可替換的：伴手禮、佈置細節、喜帖。\n\n'+
+'二、比價口徑要一致\n'+
+'同一類至少比三家，比的時候統一口徑：是否含加班費、修圖張數、交付時間、是否含服裝與交通、是否含稅、加桌怎麼算。報價單不寫清楚的，成交後一定會變成加錢項。\n\n'+
+'三、合約必看六條\n'+
+'檔期鎖定方式、主創換人怎麼辦、超時費怎麼算、取消退款比例、交付時間與形式、違約責任。\n\n'+
+'四、預算分配參考\n'+
+'場地餐飲約 50%，人像相關（攝影錄影妝造婚紗）約 30%，佈置與其他約 20%，另留總額 10% 機動。\n\n'+
+'五、兩人分歧怎麼處理\n'+
+'供應商兩人分別打分，差 1.2 分以上的先別定，把各自的理由寫在那一欄裡，看是審美不同還是資訊不對稱。\n\n'+
+'六、家庭溝通\n'+
+'習俗有分歧時，先各自回去問清自己爸媽的底線，再由毛和哈利互相轉達，不讓長輩直接協商。共識寫進「習俗對齊」表。\n\n'+
+'七、金額門檻\n'+
+'任何超出該項預算 5% 以上的決定，兩人一起確認再簽。\n\n'+
+'八、兩種幣別\n'+
+'金額一律以人民幣記帳，台幣依匯率換算顯示。台灣那邊的實付如果是台幣，先換算成人民幣填，備註寫上原始台幣金額。\n\n'+
+'九、體力也是預算\n'+
+'婚禮前一週不做新決策，只做確認。當天流程留 30 分鐘緩衝，一定會用上。';
+
+/* ================= 工具 ================= */
+function uid(){return 'r'+Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-3);}
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
+function today(){var d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate());}
+function parseD(s){if(!s)return null;var p=String(s).split('-');if(p.length<3)return null;var d=new Date(+p[0],+p[1]-1,+p[2]);return isNaN(d.getTime())?null:d;}
+function daysTo(s){var d=parseD(s);if(!d)return null;return Math.round((d-today())/86400000);}
+function fmtN(n){return (Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:0});}
+function cny(n){return '¥'+fmtN(n);}
+function twd(n){return 'NT$'+fmtN(Math.round((Number(n)||0)*fx()));}
+function both(n){return cny(n)+'　'+twd(n);}
+function fx(){return (state&&Number(state.fx))||FX_DEFAULT;}
+function fmtMD(s){var p=String(s).split('-');return (+p[1])+'/'+(+p[2]);}
+function todayISO(){var d=new Date(),m=('0'+(d.getMonth()+1)).slice(-2),dd=('0'+d.getDate()).slice(-2);return d.getFullYear()+'-'+m+'-'+dd;}
+
+/* ================= 狀態 ================= */
+var state=null,timer=null;
+var view={g:'dash',s:null};
+var lastSub={plan:'rundown',banquet:'dayplan'};
+var openDays={},openTasks={},openVend={},openFlow={};
+var filt={rundown:{status:'',owner:'',q:''},guests:{side:''},vendors:{cat:''},budget:{kind:''}};
+
+function newVendor(cat){
+  var r={id:uid(),cat:cat||VCATS[0],name:'',who:'',free:'待問',price:'',status:'候選',note:'',why_m:'',why_h:''};
+  DIMS.forEach(function(d){r['m_'+d.k]='';r['h_'+d.k]='';});
+  return r;
+}
+function fresh(){
+  return {
+    v:3,fx:FX_DEFAULT,dpAuto:true,theme:'dark',
+    principles:DEFAULT_PRINCIPLES,
+    rundown:DEFAULT_RUNDOWN.map(function(a){
+      return {id:uid(),date:a[0],time:a[1],task:a[2],cat:a[3],owner:a[4],liaison:a[5],vendor:a[6],status:a[7]||'未開始',detail:a[8]||'',
+        steps:(a[9]||[]).map(function(t){return {id:uid(),t:t,done:false};}),ms:a[10]||'',info:'',vids:[]};
+    }),
+    dayplan:DEFAULT_DAYPLAN.map(function(a){return {id:uid(),time:a[0],lucky:a[1],item:a[2],place:a[3],who:a[4],owner:a[5],need:a[6],note:a[7],cids:[],vids:[]};}),
+    ideas:DEFAULT_IDEAS.map(function(a){return {id:uid(),date:a[0],type:a[1],title:a[2],body:a[3],by:a[4],link:a[5],status:a[6]};}),
+    budget:DEFAULT_BUDGET.map(function(a){return {id:uid(),cat:a[0],item:a[1],kind:a[2],plan:'',real:'',paid:'',payer:a[3],to:a[4],status:a[5],note:a[6]};}),
+    guests:[{id:uid(),side:'男方',name:'',rel:'',liaison:'哈利',go:'待定',n:1,table:'',gift:'',back:'',tel:'',note:''},
+            {id:uid(),side:'女方',name:'',rel:'',liaison:'毛',go:'待定',n:1,table:'',gift:'',back:'',tel:'',note:''}],
+    vendors:['跟拍','婚紗/旅拍','婚紗禮服','妝造跟妝','攝影','錄影','主持','場地酒店','婚慶統籌','花藝佈置','喜糖伴手禮','三金對戒','婚車'].map(newVendor),
+    docs:DEFAULT_DOCS.map(function(a){return {id:uid(),item:a[0],who:a[1],need:a[2],org:a[3],due:a[4],owner:a[5],status:a[6],note:a[7]};}),
+    customs:DEFAULT_CUSTOMS.map(function(a){return {id:uid(),item:a[0],gz:a[1],tw:a[2],deal:a[3],owner:a[4],status:a[5]};}),
+    contacts:[{id:uid(),name:'',role:'婚禮統籌',from:'供應商',tel:'',note:''}]
+  };
+}
+function migrate(s){
+  if(!s)return fresh();
+  if(!s.fx)s.fx=FX_DEFAULT;
+  (s.rundown||[]).forEach(function(r){
+    if(r.steps==null)r.steps=[];
+    if(r.detail==null)r.detail=r.note||'';
+    if(r.ms==null)r.ms='';
+    if(r.info==null)r.info='';
+    if(!r.vids)r.vids=[];
+    delete r.phase;
+  });
+  (s.vendors||[]).forEach(function(r){
+    if(r.cat==='約拍/婚紗照')r.cat='婚紗/旅拍';
+    if(r.m_work===undefined){
+      var old={work:r.r1,price:r.r2,comm:r.r3,rep:r.r4,deal:r.r5};
+      DIMS.forEach(function(d){r['m_'+d.k]=old[d.k]||'';r['h_'+d.k]='';});
+      ['r1','r2','r3','r4','r5','score'].forEach(function(k){delete r[k];});
+    }
+    if(r.why_m===undefined){r.why_m='';r.why_h='';}
+  });
+  /* 三個里程碑一定要在事項裡有一條對應的 event */
+  MILESTONES.forEach(function(m){
+    var hit=(s.rundown||[]).filter(function(r){return r.ms===m.ms;})[0];
+    if(hit)return;
+    var same=(s.rundown||[]).filter(function(r){return r.date===m.d;});
+    var pick=same.filter(function(r){return /領證|登記|婚宴|领证|登记/.test(r.task||'');})[0]||same[0];
+    if(pick){pick.ms=m.ms;if(pick.info==null)pick.info='';}
+    else s.rundown.push({id:uid(),date:m.d,time:'',task:m.t,cat:'證件登記',owner:'雙方',liaison:'',vendor:'',status:'未開始',detail:'',steps:[],ms:m.ms,info:'',vids:[]});
+  });
+  if(s.dpAuto===undefined)s.dpAuto=true;
+  if(!s.theme)s.theme='dark';
+  (s.dayplan||[]).forEach(function(r){
+    if(!r.cids)r.cids=[];
+    if(!r.vids)r.vids=[];
+    if(!r.cids.length&&r.who){
+      (r.who.split(/[、,，\/]/)).forEach(function(nm){
+        nm=nm.trim();if(!nm)return;
+        var hit=(s.contacts||[]).filter(function(c){return c.name&&c.name===nm;})[0];
+        if(hit&&r.cids.indexOf(hit.id)<0)r.cids.push(hit.id);
+      });
+    }
+    if(!r.vids.length&&r.need){
+      var hv=(s.vendors||[]).filter(function(v){return v.name&&v.name===r.need.trim();})[0];
+      if(hv)r.vids=[hv.id];
+    }
+  });
+  /* 事項裡打過的供應商文字，若和供應商池同名就自動接起來 */
+  (s.rundown||[]).forEach(function(r){
+    if(r.vids.length||!r.vendor)return;
+    var hit=(s.vendors||[]).filter(function(v){return v.name&&v.name===r.vendor;})[0];
+    if(hit)r.vids=[hit.id];
+  });
+  if(!s.principles)s.principles=DEFAULT_PRINCIPLES;
+  s.v=3;
+  return s;
+}
+
+function applyTheme(){
+  var light=state&&state.theme==='light';
+  document.body.classList.toggle('light',light);
+  var b=document.getElementById('btnTheme');
+  if(b)b.textContent=light?'深色':'淺色';
+}
+function markSaved(t){document.getElementById('saved').textContent=t||'';}
+/* ---------- 存在哪裡 ----------
+   本機：宿主 storage（在 Claude 裡）或 localStorage（自架網頁）
+   雲端：Supabase 房間，兩人共用一份，十秒對一次
+------------------------------------- */
+var SB={
+  url:'https://qiwyvztluteqrnilajve.supabase.co',
+  key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpd3l2enRsdXRlcXJuaWxhanZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzODY0NDEsImV4cCI6MjEwMDk2MjQ0MX0.Jl6J_nl9uWFyWWkRcWwLEnI24DwoKmORdCQPmOucTb8'
+};
+var ROOMKEY='wedding_plan_room';
+
+var STORE=(function(){
+  if(window.storage&&window.storage.get&&window.storage.set){
+    return {
+      kind:'host',
+      get:function(){return window.storage.get(KEY).then(function(r){return r&&r.value;});},
+      set:function(v){return window.storage.set(KEY,v);}
+    };
+  }
+  try{
+    var t='__wp_probe__';
+    window.localStorage.setItem(t,'1');window.localStorage.removeItem(t);
+    return {
+      kind:'local',
+      get:function(){return Promise.resolve(window.localStorage.getItem(KEY));},
+      set:function(v){return new Promise(function(res,rej){
+        try{window.localStorage.setItem(KEY,v);res();}catch(err){rej(err);}
+      });}
+    };
+  }catch(e){return null;}
+})();
+
+/* ---- 房間設定：存在本機，不進備份檔 ---- */
+var room=null;
+function loadRoom(){
+  var h=location.hash||'';
+  var m=/room=([^&]+)&k=([^&]+)/.exec(h);
+  if(m){
+    room={room:decodeURIComponent(m[1]),secret:decodeURIComponent(m[2]),who:''};
+    saveRoom();
+    try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+    return;
+  }
+  try{var raw=window.localStorage.getItem(ROOMKEY);if(raw)room=JSON.parse(raw);}catch(e){room=null;}
+}
+function saveRoom(){
+  try{
+    if(room)window.localStorage.setItem(ROOMKEY,JSON.stringify(room));
+    else window.localStorage.removeItem(ROOMKEY);
+  }catch(e){}
+}
+function randId(n){
+  var a='abcdefghijkmnpqrstuvwxyz23456789',o='';
+  for(var i=0;i<n;i++)o+=a[Math.floor(Math.random()*a.length)];
+  return o;
+}
+function syncState(cls,msg){
+  var box=document.getElementById('syncstate');
+  if(!box)return;
+  if(!room){box.hidden=true;return;}
+  box.hidden=false;box.className='sync '+(cls||'');
+  document.getElementById('syncmsg').textContent=msg||'';
+}
+function rpc(fn,body){
+  return fetch(SB.url+'/rest/v1/rpc/'+fn,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','apikey':SB.key,'Authorization':'Bearer '+SB.key},
+    body:JSON.stringify(body)
+  }).then(function(r){
+    if(!r.ok)return r.text().then(function(t){throw new Error(t||('HTTP '+r.status));});
+    return r.json();
+  });
+}
+var cloudRev=0,pushTimer=null,pulling=false,localDirty=false;
+function cloudPush(){
+  if(!room)return;
+  syncState('busy','同步中…');
+  rpc('plan_save',{p_room:room.room,p_secret:room.secret,p_data:state,p_by:room.who||''})
+    .then(function(res){
+      var r=(res&&res[0])||{};
+      cloudRev=r.rev||cloudRev;localDirty=false;
+      syncState('on','已同步');
+    })
+    .catch(function(){syncState('err','同步失敗，資料仍在本機');});
+}
+function cloudPushSoon(){
+  if(!room)return;
+  localDirty=true;syncState('busy','待同步…');
+  clearTimeout(pushTimer);pushTimer=setTimeout(cloudPush,1500);
+}
+function cloudPull(force){
+  if(!room||pulling)return;
+  pulling=true;
+  rpc('plan_load',{p_room:room.room,p_secret:room.secret})
+    .then(function(res){
+      pulling=false;
+      var r=(res&&res[0])||null;
+      if(!r){cloudPush();return;}                       /* 房間還沒建，把本機這份推上去 */
+      if(r.rev===cloudRev&&!force)return;
+      if(localDirty&&!force){cloudPush();return;}       /* 本機有還沒推的改動，以本機為準 */
+      if(r.data&&r.data.rundown){
+        state=migrate(r.data);cloudRev=r.rev;
+        applyTheme();renderRail();render();
+        syncState('on','已同步'+(r.updated_by?' · '+r.updated_by+' 剛更新':''));
+      }
+    })
+    .catch(function(){pulling=false;syncState('err','讀不到雲端');});
+}
+var visBound=false;
+function startPolling(){
+  clearInterval(window.__syncTimer);
+  window.__syncTimer=setInterval(function(){if(!document.hidden)cloudPull(false);},10000);
+  if(!visBound){
+    visBound=true;
+    document.addEventListener('visibilitychange',function(){if(!document.hidden)cloudPull(false);});
+  }
+}
+function startSync(){
+  if(!room)return;
+  syncState('busy','連線中…');
+  cloudPull(true);
+  startPolling();
+}
+
+function save(){
+  markSaved('儲存中…');
+  cloudPushSoon();
+  clearTimeout(timer);
+  timer=setTimeout(function(){
+    if(!STORE){markSaved('無法儲存 · 請匯出備份');return;}
+    STORE.set(JSON.stringify(state)).then(function(){markSaved('已儲存');})
+      .catch(function(){markSaved('儲存失敗 · 請匯出備份');});
+  },500);
+}
+
+/* ================= 統計 ================= */
+function budgetTotals(){
+  var t={plan:0,real:0,paid:0,income:0,incomeReal:0};
+  state.budget.forEach(function(r){
+    var p=Number(r.plan)||0,re=Number(r.real)||0,pa=Number(r.paid)||0;
+    if(r.kind==='收入'){t.income+=p;t.incomeReal+=re;}else{t.plan+=p;t.real+=re;t.paid+=pa;}
+  });
+  return t;
+}
+function guestStats(){
+  var s={m:0,f:0,go:0,n:0,gift:0,pend:0};
+  state.guests.forEach(function(r){
+    var n=Number(r.n)||0;
+    if(r.side==='男方')s.m+=n;
+    if(r.side==='女方')s.f+=n;
+    if(r.go==='出席'){s.go++;s.n+=n;}
+    if(r.go==='待定')s.pend++;
+    s.gift+=Number(r.gift)||0;
+  });
+  return s;
+}
+function overdueCount(){
+  var n=0;
+  state.rundown.forEach(function(r){
+    if(r.status==='已完成'||r.status==='已取消')return;
+    var d=daysTo(r.date);if(d!==null&&d<0)n++;
+  });
+  return n;
+}
+
+/* ================= 題頭 ================= */
+function renderRail(){
+  var rail=document.getElementById('rail');rail.innerHTML='';
+  var nextIdx=-1;
+  MILESTONES.forEach(function(m,i){var d=daysTo(m.d);if(nextIdx<0&&d>=0)nextIdx=i;});
+  MILESTONES.forEach(function(m,i){
+    var d=daysTo(m.d);
+    var s=el('button','stop'+(d<0?' done':'')+(i===nextIdx?' next':''));
+    s.dataset.msopen=m.ms;
+    s.appendChild(el('span','dot'));
+    s.appendChild(el('div','when',m.d.replace(/-/g,'.')));
+    s.appendChild(el('div','what serif',m.t));
+    var left=el('div','left');
+    if(d===null)left.textContent='—';
+    else if(d>0)left.innerHTML='<span class="num serif">'+d+'</span> 天後';
+    else if(d===0)left.innerHTML='<span class="num serif">今天</span>';
+    else left.textContent='已完成 · '+(-d)+' 天前';
+    s.appendChild(left);
+    s.appendChild(el('div','place',m.p));
+    s.appendChild(el('div','enter','看這件事 →'));
+    rail.appendChild(s);
+  });
+  renderBrief();
+}
+function nextTask(){
+  var up=null,od=null;
+  state.rundown.forEach(function(r){
+    if(r.status==='已完成'||r.status==='已取消')return;
+    var d=daysTo(r.date);if(d===null)return;
+    if(d>=0){if(!up||r.date<up.date)up=r;}
+    else{if(!od||r.date>od.date)od=r;}
+  });
+  return od||up;
+}
+function renderBrief(){
+  var box=document.getElementById('brief');if(!box||!state)return;
+  box.innerHTML='';
+  var done=0;state.rundown.forEach(function(r){if(r.status==='已完成')done++;});
+  var over=overdueCount(),b=budgetTotals(),g=guestStats(),nt=nextTask();
+
+  var b1=el('div','b');
+  b1.appendChild(el('span','lb',nt&&daysTo(nt.date)<0?'逾期未做':'下一件事'));
+  if(nt){
+    var btn=el('button','go',fmtMD(nt.date)+'　'+(nt.task||'（未命名事項）')+(nt.owner?'　'+nt.owner:''));
+    btn.addEventListener('click',function(){
+      view.g='plan';view.s='rundown';lastSub.plan='rundown';
+      openDays[nt.date||'未定日期']=true;openTasks[nt.id]=true;
+      render();document.getElementById('panel').scrollIntoView({block:'start'});
+    });
+    b1.appendChild(btn);
+  }else b1.appendChild(el('span',null,'沒有待辦了'));
+  box.appendChild(b1);
+
+  function stat(l,v,cls){
+    var d=el('div','b');
+    d.appendChild(el('span','lb',l+' '));
+    d.appendChild(el('b',cls||null,v));
+    box.appendChild(d);
+  }
+  stat('事項',done+'/'+state.rundown.length);
+  if(over)stat('逾期',String(over),'warn');
+  stat('已付',both(b.paid));
+  stat('出席',g.n+' 人');
+}
+
+/* ================= 通用表 ================= */
+function passFilter(tab,r){
+  if(tab==='rundown'){
+    var f=filt.rundown;
+    if(f.status&&r.status!==f.status)return false;
+    if(f.owner&&r.owner!==f.owner)return false;
+    if(f.q){var q=f.q.toLowerCase();
+      var hay=[r.task,r.vendor,r.liaison,r.detail,r.cat].join(' ').toLowerCase();
+      var st=(r.steps||[]).map(function(s){return s.t;}).join(' ').toLowerCase();
+      if(hay.indexOf(q)<0&&st.indexOf(q)<0)return false;}
+  }
+  if(tab==='guests'&&filt.guests.side&&r.side!==filt.guests.side)return false;
+  if(tab==='vendors'&&filt.vendors.cat&&r.cat!==filt.vendors.cat)return false;
+  if(tab==='budget'&&filt.budget.kind&&r.kind!==filt.budget.kind)return false;
+  return true;
+}
+function twdSrc(tab,r){
+  if(tab==='budget')return (r.real!==''&&r.real!=null)?r.real:r.plan;
+  if(tab==='guests')return r.gift;
+  return 0;
+}
+function cellFor(row,col,tab){
+  var td=el('td');
+  if(col.w)td.style.minWidth=col.w+'px';
+  if(col.t==='twd'){
+    td.className='twd';td.dataset.twd=row.id;td.dataset.twdtab=tab;
+    td.textContent=twd(twdSrc(tab,row));
+    return td;
+  }
+  var inp;
+  if(col.t==='select'){
+    inp=el('select');
+    (col.o||[]).forEach(function(o){var op=el('option',null,o===''?'—':o);op.value=o;inp.appendChild(op);});
+    if(col.o&&col.o.indexOf(row[col.k])<0){var op=el('option',null,row[col.k]||'—');op.value=row[col.k]||'';inp.appendChild(op);}
+    inp.value=row[col.k]||'';
+    inp.className='st-'+(row[col.k]||'');
+  }else if(col.t==='textarea'){
+    inp=el('textarea');inp.rows=1;inp.value=row[col.k]||'';
+    setTimeout(function(){autoGrow(inp);},0);
+  }else{
+    inp=el('input');
+    inp.type=col.t==='number'?'number':(col.t==='date'?'date':'text');
+    if(col.t==='number'){td.className='num';inp.step='1';}
+    inp.value=row[col.k]==null?'':row[col.k];
+  }
+  inp.dataset.id=row.id;inp.dataset.k=col.k;inp.dataset.tab=tab;
+  td.appendChild(inp);
+  return td;
+}
+function autoGrow(t){t.style.height='auto';t.style.height=Math.min(t.scrollHeight,200)+'px';}
+
+function buildTable(tab){
+  var sch=SCHEMAS[tab];
+  var wrap=el('div','tw'),tb=el('table'),thead=el('thead'),htr=el('tr');
+  sch.cols.forEach(function(c){htr.appendChild(el('th',null,c.l));});
+  htr.appendChild(el('th',null,''));
+  thead.appendChild(htr);tb.appendChild(thead);
+  var body=el('tbody');
+  state[tab].forEach(function(r){
+    if(!passFilter(tab,r))return;
+    var tr=el('tr');
+    sch.cols.forEach(function(c){tr.appendChild(cellFor(r,c,tab));});
+    var tdd=el('td');
+    tdd.appendChild(delBtn(r.id,tab));tr.appendChild(tdd);
+    body.appendChild(tr);
+  });
+  tb.appendChild(body);wrap.appendChild(tb);
+  return wrap;
+}
+function addRow(tab){
+  var r={id:uid()};
+  SCHEMAS[tab].cols.forEach(function(c){if(c.t!=='twd')r[c.k]=c.t==='select'?(c.o[0]||''):'';});
+  if(tab==='guests'){r.go='待定';r.n=1;r.side=filt.guests.side||'男方';}
+  if(tab==='budget'){r.kind=filt.budget.kind||'支出';r.status='未付';r.plan='';r.real='';r.paid='';}
+  if(tab==='ideas'){r.date=todayISO();r.type='靈感';r.status='待議';}
+  if(tab==='docs')r.status='未開始';
+  state[tab].push(r);save();render();
+}
+
+/* ================= Rundown ================= */
+/* ===== 引用：供應商 / 通訊錄 ===== */
+var REF={
+  vendor:{key:'vids',list:'vendors',label:'供應商',cats:VCATS,jump:['vendors','']},
+  contact:{key:'cids',list:'contacts',label:'人',cats:['男方','女方','供應商','場地','其他'],jump:['banquet','contacts']}
+};
+function refById(kind,id){return state[REF[kind].list].filter(function(v){return v.id===id;})[0]||null;}
+function refName(kind,it){
+  if(kind==='vendor')return it.name||'（未命名 · '+it.cat+'）';
+  return it.name||'（未命名）';
+}
+function refLabel(kind,it){
+  if(kind==='vendor')return refName(kind,it)+' · '+it.cat+(it.price?' · '+cny(it.price):'')+(it.status==='已定'?' · 已定':'');
+  return refName(kind,it)+(it.role?' · '+it.role:'');
+}
+function refNames(r,kind){
+  return (r[REF[kind].key]||[]).map(function(id){
+    var it=refById(kind,id);return it?refName(kind,it):null;
+  }).filter(Boolean);
+}
+function telNode(txt){
+  var w=el('span');
+  var m=/(\+?[\d\-\s()]{7,})/.exec(txt||'');
+  if(m){
+    var a=el('a',null,txt);
+    a.href='tel:'+m[1].replace(/[^\d+]/g,'');
+    a.style.color='var(--gold)';a.style.textDecoration='none';a.style.borderBottom='1px solid var(--rule)';
+    w.appendChild(a);
+  }else w.textContent=txt||'（未填聯絡方式）';
+  return w;
+}
+/* 已關聯項目的聯絡資訊，點電話可直撥 */
+function refInfo(r,kind){
+  var ids=r[REF[kind].key]||[];
+  if(!ids.length)return null;
+  var box=el('div','cinfo');
+  ids.forEach(function(id){
+    var it=refById(kind,id);if(!it)return;
+    var line=el('div','ci');
+    line.appendChild(el('span','ciname',refName(kind,it)));
+    line.appendChild(el('span','cirole',kind==='vendor'?it.cat:(it.role||'')));
+    line.appendChild(telNode(kind==='vendor'?it.who:it.tel));
+    if(kind==='vendor'&&it.price)line.appendChild(el('span','cirole',cny(it.price)));
+    var j=el('button','tiny','資料 →');
+    j.dataset.goto=REF[kind].jump[0];j.dataset.gotosub=REF[kind].jump[1];
+    line.appendChild(j);
+    box.appendChild(line);
+  });
+  return box;
+}
+function refPicker(r,tab,kind){
+  var cfg=REF[kind],box=el('div','vpick');
+  if(!r[cfg.key])r[cfg.key]=[];
+  r[cfg.key].forEach(function(id){
+    var it=refById(kind,id);if(!it)return;
+    var c=el('span','chip');
+    c.appendChild(el('span',null,refLabel(kind,it)));
+    var x=el('button','x','×');
+    x.dataset.unlink=id;x.dataset.pid=r.id;x.dataset.untab=tab;x.dataset.unkind=kind;x.title='取消關聯';
+    c.appendChild(x);
+    box.appendChild(c);
+  });
+  var legacy=kind==='vendor'?r.vendor||r.need:r.who;
+  if(!r[cfg.key].length&&legacy){
+    var lc=el('span','chip legacy');
+    lc.appendChild(el('span',null,'文字：'+legacy));
+    box.appendChild(lc);
+  }
+  var row2=el('div','row2');
+  var sel=el('select');
+  var o0=el('option',null,'＋ 從'+(kind==='vendor'?'供應商池':'通訊錄')+'選擇');o0.value='';sel.appendChild(o0);
+  var byCat={},cats=[];
+  state[cfg.list].forEach(function(v){
+    if(r[cfg.key].indexOf(v.id)>=0)return;
+    var ck=kind==='vendor'?v.cat:(v.from||'其他');
+    if(!byCat[ck]){byCat[ck]=[];cats.push(ck);}
+    byCat[ck].push(v);
+  });
+  cats.forEach(function(cat){
+    var og=el('optgroup');og.label=cat;
+    byCat[cat].forEach(function(v){
+      var op=el('option',null,refLabel(kind,v));op.value=v.id;og.appendChild(op);
+    });
+    sel.appendChild(og);
+  });
+  sel.dataset.linkadd=r.id;sel.dataset.linktab=tab;sel.dataset.linkkind=kind;
+  row2.appendChild(sel);
+  var nin=el('input');nin.type='text';
+  nin.placeholder=kind==='vendor'?'沒有？打名稱新增':'沒有？打姓名新增';
+  nin.dataset.refname=r.id;
+  var ncat=el('select');ncat.dataset.refcat=r.id;
+  cfg.cats.forEach(function(cv){var op=el('option',null,cv);op.value=cv;ncat.appendChild(op);});
+  if(kind==='vendor'&&r.cat){
+    var guess={'攝影':'攝影','錄影':'錄影','婚紗禮服':'婚紗禮服','妝造':'妝造跟妝','主持':'主持','場地餐飲':'場地酒店','婚慶佈置':'婚慶統籌','喜糖伴手禮':'喜糖伴手禮','三金對戒':'三金對戒','婚車交通':'婚車','喜帖賓客':'喜帖'}[r.cat];
+    if(guess)ncat.value=guess;
+  }
+  var nbtn=el('button','btn','建立並關聯');
+  nbtn.dataset.refadd=r.id;nbtn.dataset.reftab=tab;nbtn.dataset.refkind=kind;
+  row2.appendChild(nin);row2.appendChild(ncat);row2.appendChild(nbtn);
+  box.appendChild(row2);
+  if(kind==='vendor'){
+    var sum=0;r[cfg.key].forEach(function(id){var v=refById('vendor',id);if(v)sum+=Number(v.price)||0;});
+    if(sum)box.appendChild(el('div','sum','關聯報價合計 '+both(sum)));
+  }
+  var info=refInfo(r,kind);
+  if(info)box.appendChild(info);
+  return box;
+}
+function vendorNames(r){return refNames(r,'vendor');}
+function tasksUsing(vid){
+  var out=state.rundown.filter(function(r){return (r.vids||[]).indexOf(vid)>=0;})
+    .map(function(r){return (r.date?fmtMD(r.date)+' ':'')+(r.task||'未命名事項');});
+  state.dayplan.forEach(function(r){
+    if((r.vids||[]).indexOf(vid)>=0)out.push('婚宴 '+(r.time||'')+' '+(r.item||''));
+  });
+  return out;
+}
+
+/* ===== 行事曆 .ics ===== */
+function icsEsc(t){return String(t||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');}
+function pad(n){return (n<10?'0':'')+n;}
+function icsDate(d){return d.replace(/-/g,'');}
+function icsStamp(){
+  var d=new Date();
+  return d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate())+'T'+pad(d.getUTCHours())+pad(d.getUTCMinutes())+pad(d.getUTCSeconds())+'Z';
+}
+function icsEvent(r){
+  if(!r.date)return '';
+  var uidv=r.id+'@wedding-plan';
+  var lines=['BEGIN:VEVENT','UID:'+uidv,'DTSTAMP:'+icsStamp()];
+  var tm=/^(\d{1,2}):(\d{2})/.exec(r.time||'');
+  if(tm){
+    var h=pad(+tm[1]),mi=tm[2];
+    var end=pad(Math.min(23,+tm[1]+1));
+    lines.push('DTSTART:'+icsDate(r.date)+'T'+h+mi+'00');
+    lines.push('DTEND:'+icsDate(r.date)+'T'+end+mi+'00');
+  }else{
+    var nx=new Date(parseD(r.date).getTime()+86400000);
+    lines.push('DTSTART;VALUE=DATE:'+icsDate(r.date));
+    lines.push('DTEND;VALUE=DATE:'+nx.getFullYear()+pad(nx.getMonth()+1)+pad(nx.getDate()));
+  }
+  lines.push('SUMMARY:'+icsEsc((r.ms?'★ ':'')+(r.task||'備婚事項')));
+  var desc=[];
+  if(r.owner)desc.push('負責人：'+r.owner);
+  if(r.liaison)desc.push('對接人：'+r.liaison);
+  var vn=vendorNames(r);
+  if(vn.length)desc.push('供應商：'+vn.join('、'));
+  else if(r.vendor)desc.push('供應商：'+r.vendor);
+  if(r.detail)desc.push('',r.detail);
+  if((r.steps||[]).length)desc.push('','子步驟：'+r.steps.map(function(s){return (s.done?'✓ ':'□ ')+s.t;}).join('　'));
+  if(r.info)desc.push('','資料：'+r.info);
+  lines.push('DESCRIPTION:'+icsEsc(desc.join('\n')));
+  lines.push('BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(r.task||'備婚事項'),'END:VALARM');
+  if(r.ms)lines.push('BEGIN:VALARM','TRIGGER:-P7D','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(r.task||'里程碑'),'END:VALARM');
+  lines.push('END:VEVENT');
+  return lines.join('\r\n');
+}
+function downloadIcs(rows,name){
+  var body=rows.map(icsEvent).filter(Boolean).join('\r\n');
+  if(!body){toast('這些事項還沒有日期，先填日期才能加進行事曆。');return;}
+  var txt=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//備婚統籌台//TW','CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:備婚統籌台',body,'END:VCALENDAR'].join('\r\n');
+  var blob=new Blob([txt],{type:'text/calendar;charset=utf-8'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=name+'.ics';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
+}
+
+/* ================= 婚宴流程 ================= */
+function tmin(t){
+  var m=/^(\d{1,2})[:：]?(\d{2})?/.exec((t||'').trim());
+  if(!m)return null;
+  return (+m[1])*60+(m[2]?+m[2]:0);
+}
+function sortDayplan(){
+  var carry=-1;
+  var keyed=state.dayplan.map(function(r,i){
+    var v=tmin(r.time);
+    if(v!==null)carry=v;
+    return {r:r,k:(v!==null?v:(carry>=0?carry+0.5:99999)),i:i};
+  });
+  keyed.sort(function(a,b){return a.k-b.k||a.i-b.i;});
+  state.dayplan=keyed.map(function(x){return x.r;});
+}
+function dropRow(tab,id,targetId,after){
+  var L=state[tab];
+  var r=L.filter(function(x){return x.id===id;})[0],t=L.filter(function(x){return x.id===targetId;})[0];
+  if(!r||!t||r===t)return;
+  L.splice(L.indexOf(r),1);
+  L.splice(L.indexOf(t)+(after?1:0),0,r);
+  if(tab==='dayplan')state.dpAuto=false;
+  save();render();
+}
+function moveRow(tab,id,dir){
+  var L=state[tab];
+  var i=L.map(function(x){return x.id;}).indexOf(id),j=dir==='up'?i-1:i+1;
+  if(i<0||j<0||j>=L.length)return;
+  var tmp=L[i];L[i]=L[j];L[j]=tmp;
+  if(tab==='dayplan')state.dpAuto=false;
+  save();render();
+}
+function flowEl(r){
+  var wrap=el('div');
+  var row=el('div','frow drow');
+  row.dataset.rowid=r.id;row.dataset.list='dayplan';
+
+  var hd=el('div','handle f-h','⠿');hd.title='按住上下拖動排序（拖過就會關掉自動排序）';
+  hd.addEventListener('mousedown',function(){row.draggable=true;});
+  hd.addEventListener('mouseup',function(){row.draggable=false;});
+  row.appendChild(hd);
+
+  function fld(k,cls,ph){
+    var e=el('input',cls);e.value=r[k]||'';e.placeholder=ph;
+    e.dataset.id=r.id;e.dataset.k=k;e.dataset.tab='dayplan';
+    return e;
+  }
+  row.appendChild(fld('time','f-t','09:00'));
+  row.appendChild(fld('lucky','f-l','吉時'));
+  row.appendChild(fld('item','f-i','這個環節是……'));
+  row.appendChild(fld('place','f-p','地點'));
+
+  var os=el('select','f-o');
+  [''].concat(OWNERS).forEach(function(o){var op=el('option',null,o===''?'負責人':o);op.value=o;os.appendChild(op);});
+  if(r.owner&&OWNERS.indexOf(r.owner)<0){var op2=el('option',null,r.owner);op2.value=r.owner;os.appendChild(op2);}
+  os.value=r.owner||'';
+  os.dataset.id=r.id;os.dataset.k='owner';os.dataset.tab='dayplan';
+  row.appendChild(os);
+
+  var wn=refNames(r,'contact');
+  var wb=el('button','venbtn f-w '+(wn.length?'linked':'empty'),wn.length?'👤 '+wn.join('、'):(r.who||'＋ 參與人'));
+  wb.dataset.venopen=r.id;wb.dataset.venlist='dayplan';wb.title='關聯通訊錄裡的人，展開就看得到電話';
+  row.appendChild(wb);
+
+  var vn=refNames(r,'vendor');
+  var vb=el('button','venbtn f-v '+(vn.length?'linked':'empty'),vn.length?'◇ '+vn.join('、'):(r.need||'＋ 物料/供應商'));
+  vb.dataset.venopen=r.id;vb.dataset.venlist='dayplan';vb.title='關聯供應商池';
+  row.appendChild(vb);
+
+  var ex=el('button','exp f-e',openFlow[r.id]?'▾':'▸');
+  ex.dataset.fexp=r.id;ex.title='展開細節';
+  row.appendChild(ex);
+  var dl=delBtn(r.id,'dayplan');dl.classList.add('f-d');
+  row.appendChild(dl);
+  wrap.appendChild(row);
+
+  if(openFlow[r.id]){
+    var d=el('div','detail');
+    var g=el('div','dgrid');
+    var mu=el('button','btn','↑ 上移');mu.dataset.rmove=r.id;mu.dataset.rtab='dayplan';mu.dataset.dir='up';
+    var md=el('button','btn','↓ 下移');md.dataset.rmove=r.id;md.dataset.rtab='dayplan';md.dataset.dir='down';
+    g.appendChild(mu);g.appendChild(md);
+    d.appendChild(g);
+
+    d.appendChild(el('div','lbl2','參與人（通訊錄）'));
+    d.appendChild(refPicker(r,'dayplan','contact'));
+    d.appendChild(el('div','lbl2','物料 / 供應商'));
+    d.appendChild(refPicker(r,'dayplan','vendor'));
+
+    d.appendChild(el('div','lbl2','備註'));
+    var ta=el('textarea');ta.value=r.note||'';ta.placeholder='這個環節要注意什麼、東西誰帶、備案……';
+    ta.dataset.id=r.id;ta.dataset.k='note';ta.dataset.tab='dayplan';
+    d.appendChild(ta);
+    wrap.appendChild(d);
+  }
+  return wrap;
+}
+function bqDate(){
+  var r=state.rundown.filter(function(x){return x.ms==='bq';})[0];
+  return (r&&r.date)||MILESTONES[2].d;
+}
+function renderDayplan(p){
+  var f=el('div','filters');
+  var lab=el('label','fx');
+  var cb=el('input');cb.type='checkbox';cb.checked=state.dpAuto!==false;cb.dataset.dpauto='1';
+  cb.style.accentColor='var(--gold)';
+  lab.appendChild(cb);lab.appendChild(el('span',null,'依時間自動排序'));
+  f.appendChild(lab);
+  var sb=el('button','btn','立刻依時間重排');
+  sb.addEventListener('click',function(){sortDayplan();save();render();});
+  f.appendChild(sb);
+  f.appendChild(el('span','spacer'));
+  var ic=el('button','btn','當天流程 .ics');
+  ic.addEventListener('click',function(){
+    var date=bqDate();
+    var rows=state.dayplan.filter(function(r){return tmin(r.time)!==null;}).map(function(r){
+      return {id:r.id,date:date,time:r.time,task:(r.lucky?'【'+r.lucky+'】':'')+(r.item||''),
+        owner:r.owner,liaison:'',vendor:'',vids:r.vids||[],
+        detail:[r.place?'地點：'+r.place:'',refNames(r,'contact').join('、')||r.who||'',r.note||''].filter(Boolean).join('\n'),
+        steps:[],info:'',ms:''};
+    });
+    if(!rows.length){toast('流程還沒有填時間。');return;}
+    downloadIcs(rows,'婚宴當日流程-'+date);
+  });
+  f.appendChild(ic);
+  p.appendChild(f);
+
+  if(state.dpAuto===false)p.appendChild(el('div','hint','已改成手動排序（拖過之後就會這樣）。勾回「依時間自動排序」，或按「立刻依時間重排」都能回到照時間排。'));
+
+  var fw=el('div','fwrap'),inner=el('div','finner');
+  var head=el('div','fhead');
+  ['','時間','吉時','環節','地點','負責人','參與人','物料 / 供應商','',''].forEach(function(t){
+    head.appendChild(el('span',null,t));
+  });
+  inner.appendChild(head);
+  state.dayplan.forEach(function(r){inner.appendChild(flowEl(r));});
+  fw.appendChild(inner);p.appendChild(fw);
+
+  var add=el('button','btn rowadd','＋ 新增一個環節');
+  add.addEventListener('click',function(){
+    state.dayplan.push({id:uid(),time:'',lucky:'',item:'',place:'',who:'',owner:'',need:'',note:'',cids:[],vids:[]});
+    save();render();
+  });
+  p.appendChild(add);
+  p.appendChild(el('div','legend','時間格子填了就會自動排序，沒填時間的環節會跟在上一個時間點後面。想自己排順序就直接拖，拖過之後自動排序會關掉。參與人和物料展開後能直接看到電話，手機上點號碼可以直撥。'));
+}
+
+function taskEl(r){
+  var wrap=el('div');
+  var row=el('div','task drow'+(r.status==='已完成'?' done':'')+(r.ms?' ms':''));
+  row.dataset.taskid=r.id;row.dataset.rowid=r.id;row.dataset.list='rundown';
+
+  var hd=el('div','handle','⠿');hd.title='按住上下拖動排序';
+  hd.addEventListener('mousedown',function(){row.draggable=true;});
+  hd.addEventListener('mouseup',function(){row.draggable=false;});
+  row.appendChild(hd);
+
+  var ck=el('input','chk');ck.type='checkbox';ck.checked=r.status==='已完成';
+  ck.dataset.chk=r.id;ck.title='完成打勾';
+  row.appendChild(ck);
+
+  var tw=el('div','tkwrap');
+  if(r.ms)tw.appendChild(el('span','mstag','里程碑'));
+  var tk=el('input','tk');tk.value=r.task||'';tk.placeholder='這件事是……';
+  tk.dataset.id=r.id;tk.dataset.k='task';tk.dataset.tab='rundown';
+  tw.appendChild(tk);
+  row.appendChild(tw);
+
+  var meta=el('div','meta');
+  function mk(k,cls,ph,opts){
+    var e;
+    if(opts){
+      e=el('select',cls);
+      opts.forEach(function(o){var op=el('option',null,o===''?ph:o);op.value=o;e.appendChild(op);});
+      if(opts.indexOf(r[k])<0){var op=el('option',null,r[k]||ph);op.value=r[k]||'';e.appendChild(op);}
+      e.value=r[k]||'';
+    }else{e=el('input',cls);e.value=r[k]||'';e.placeholder=ph;}
+    e.dataset.id=r.id;e.dataset.k=k;e.dataset.tab='rundown';
+    meta.appendChild(e);
+  }
+  mk('time','w-time','時間');
+  mk('cat','w-cat','類別',[''].concat(CATS));
+  mk('owner','w-own','負責人',[''].concat(OWNERS));
+  mk('liaison','w-lia','對接人',[''].concat(OWNERS));
+  var names=vendorNames(r);
+  var vb=el('button','venbtn '+(names.length?'linked':'empty'),names.length?names.join('、'):(r.vendor||'＋ 關聯供應商'));
+  vb.dataset.venopen=r.id;vb.title='關聯供應商池裡的廠商，可以選多家';
+  meta.appendChild(vb);
+  row.appendChild(meta);
+
+  var nSteps=(r.steps||[]).length;
+  var ex=el('button','exp',openTasks[r.id]?'▾':(r.detail||nSteps?'▸ '+(nSteps||'…'):'▸'));
+  ex.dataset.exp=r.id;ex.title='展開細節';
+  row.appendChild(ex);
+  wrap.appendChild(row);
+
+  if(openTasks[r.id]){
+    var d=el('div','detail');
+    if(r.ms&&MS_META[r.ms]){
+      var mh=el('div','mshead');
+      var n=daysTo(r.date);
+      mh.appendChild(el('span','msname serif',MS_META[r.ms].n));
+      mh.appendChild(el('span','lb',n===null?'':(n>0?'還有 '+n+' 天':n===0?'就是今天':(-n)+' 天前')));
+      MS_META[r.ms].links.forEach(function(L){
+        var b=el('button','btn',L[0]+' →');
+        b.dataset.goto=L[1];b.dataset.gotosub=L[2]||'';
+        mh.appendChild(b);
+      });
+      d.appendChild(mh);
+    }
+    var g=el('div','dgrid');
+    var l1=el('label',null,'日期');
+    var di=el('input');di.type='date';di.value=r.date||'';di.dataset.id=r.id;di.dataset.k='date';di.dataset.tab='rundown';di.dataset.rerender='1';
+    l1.appendChild(di);g.appendChild(l1);
+    var l2=el('label',null,'狀態');
+    var ss=el('select');
+    STATUS.forEach(function(o){var op=el('option',null,o);op.value=o;ss.appendChild(op);});
+    ss.value=r.status||'未開始';ss.dataset.id=r.id;ss.dataset.k='status';ss.dataset.tab='rundown';ss.dataset.rerender='1';
+    l2.appendChild(ss);g.appendChild(l2);
+    var mu=el('button','btn','↑ 上移');mu.dataset.move=r.id;mu.dataset.dir='up';
+    var md=el('button','btn','↓ 下移');md.dataset.move=r.id;md.dataset.dir='down';
+    g.appendChild(mu);g.appendChild(md);
+    var cal=el('button','btn','加入行事曆');cal.dataset.ics=r.id;cal.title='下載 .ics，手機點開就能加進行事曆';
+    g.appendChild(cal);
+    g.appendChild(el('span','spacer'));
+    if(!r.ms)g.appendChild(delBtn(r.id,'rundown',true));
+    d.appendChild(g);
+
+    var ta=el('textarea');ta.value=r.detail||'';
+    ta.placeholder=r.ms?'這個里程碑當天的計劃：幾點到、誰陪同、帶什麼、之後的安排……':'細節、要問清楚的問題、決定了什麼、踩過的坑……';
+    ta.dataset.id=r.id;ta.dataset.k='detail';ta.dataset.tab='rundown';
+    d.appendChild(ta);
+
+    if(r.ms){
+      var lb=el('div','lbl2','資料與連結');
+      d.appendChild(lb);
+      var ia=el('textarea');ia.value=r.info||'';
+      ia.placeholder='文件清單、預約號、地址、承辦窗口電話、參考連結……';
+      ia.dataset.id=r.id;ia.dataset.k='info';ia.dataset.tab='rundown';
+      d.appendChild(ia);
+    }
+
+    d.appendChild(el('div','lbl2','關聯供應商'));
+    d.appendChild(refPicker(r,'rundown','vendor'));
+
+    var sw=el('div','steps');
+    sw.appendChild(el('div','lbl','子步驟'));
+    (r.steps||[]).forEach(function(s){
+      var st=el('div','step'+(s.done?' done':''));
+      var sc=el('input');sc.type='checkbox';sc.checked=!!s.done;sc.dataset.stepchk=s.id;sc.dataset.pid=r.id;
+      var si=el('input');si.type='text';si.value=s.t||'';si.dataset.steptxt=s.id;si.dataset.pid=r.id;
+      var sd=el('button','del','×');sd.dataset.stepdel=s.id;sd.dataset.pid=r.id;
+      st.appendChild(sc);st.appendChild(si);st.appendChild(sd);
+      sw.appendChild(st);
+    });
+    var ab=el('button','btn','＋ 子步驟');ab.style.marginTop='6px';ab.dataset.stepadd=r.id;
+    sw.appendChild(ab);
+    d.appendChild(sw);
+    wrap.appendChild(d);
+  }
+  return wrap;
+}
+
+/* 事項排序：同一天內上下移動 */
+function moveTask(id,dir){
+  var r=state.rundown.filter(function(x){return x.id===id;})[0];if(!r)return;
+  var same=state.rundown.filter(function(x){return (x.date||'')===(r.date||'');});
+  var i=same.indexOf(r),j=dir==='up'?i-1:i+1;
+  if(j<0||j>=same.length)return;
+  var a=state.rundown.indexOf(r),b=state.rundown.indexOf(same[j]);
+  state.rundown[a]=same[j];state.rundown[b]=r;
+  save();render();
+}
+/* 拖放：移到某一列的前/後，或丟進某一天 */
+function dropTask(id,targetId,after){
+  var r=state.rundown.filter(function(x){return x.id===id;})[0];
+  var t=state.rundown.filter(function(x){return x.id===targetId;})[0];
+  if(!r||!t||r===t)return;
+  state.rundown.splice(state.rundown.indexOf(r),1);
+  r.date=t.date;
+  var at=state.rundown.indexOf(t)+(after?1:0);
+  state.rundown.splice(at,0,r);
+  save();render();
+}
+function dropIntoDay(id,dayKey){
+  var r=state.rundown.filter(function(x){return x.id===id;})[0];if(!r)return;
+  var date=dayKey==='未定日期'?'':dayKey;
+  state.rundown.splice(state.rundown.indexOf(r),1);
+  r.date=date;
+  var last=null;
+  state.rundown.forEach(function(x){if((x.date||'')===date)last=x;});
+  var at=last?state.rundown.indexOf(last)+1:state.rundown.length;
+  state.rundown.splice(at,0,r);
+  openDays[dayKey]=true;save();render();
+}
+/* 改一整天的日期 */
+function moveDay(oldKey,newDate){
+  if(!newDate)return;
+  state.rundown.forEach(function(r){if((r.date||'未定日期')===oldKey)r.date=newDate;});
+  openDays[newDate]=true;delete openDays[oldKey];
+  save();renderSoon();
+}
+function openMilestone(ms){
+  var r=state.rundown.filter(function(x){return x.ms===ms;})[0];
+  if(!r)return;
+  view.g='plan';view.s='rundown';lastSub.plan='rundown';
+  filt.rundown={status:'',owner:'',q:''};
+  openDays[r.date||'未定日期']=true;openTasks[r.id]=true;
+  render();
+  var node=document.querySelector('[data-taskid="'+r.id+'"]');
+  if(node)node.scrollIntoView({block:'center'});
+  else document.getElementById('panel').scrollIntoView({block:'start'});
+}
+
+function renderRundown(p){
+  var f=el('div','filters');
+  function sel(opts,val,on,ph){
+    var s=el('select');var o0=el('option',null,ph);o0.value='';s.appendChild(o0);
+    opts.forEach(function(o){var e=el('option',null,o);e.value=o;s.appendChild(e);});
+    s.value=val||'';s.addEventListener('change',function(){on(s.value);render();});
+    return s;
+  }
+  f.appendChild(sel(STATUS,filt.rundown.status,function(v){filt.rundown.status=v;},'全部狀態'));
+  f.appendChild(sel(OWNERS,filt.rundown.owner,function(v){filt.rundown.owner=v;},'全部負責人'));
+  var q=el('input');q.type='search';q.placeholder='搜尋事項 / 供應商 / 細節';q.value=filt.rundown.q;
+  q.addEventListener('input',function(){filt.rundown.q=q.value;clearTimeout(q._t);q._t=setTimeout(render,260);});
+  f.appendChild(q);
+  f.appendChild(el('span','spacer'));
+  var sb=el('button','btn','按時間排序');
+  sb.title='每天內部依填的時間重排；平常可以直接拖動排序';
+  sb.addEventListener('click',function(){
+    state.rundown.sort(function(a,b){
+      var x=(a.date||'9999-99-99')+' '+(a.time||'zz'),y=(b.date||'9999-99-99')+' '+(b.time||'zz');
+      return x<y?-1:x>y?1:0;
+    });
+    save();render();
+  });
+  f.appendChild(sb);
+  var eb=el('button','btn','全部展開');eb.addEventListener('click',function(){allDays(true);});
+  var cb=el('button','btn','全部收起');cb.addEventListener('click',function(){allDays(false);});
+  f.appendChild(eb);f.appendChild(cb);
+  p.appendChild(f);
+
+  var list=state.rundown.filter(function(r){return passFilter('rundown',r);});
+  var keys=[],map={};
+  list.forEach(function(r){
+    var k=r.date||'未定日期';
+    if(!map[k]){map[k]=[];keys.push(k);}
+    map[k].push(r);
+  });
+  keys.sort(function(a,b){
+    if(a==='未定日期')return 1;if(b==='未定日期')return -1;
+    return a<b?-1:a>b?1:0;
+  });
+  if(!keys.length)p.appendChild(el('p','hint','沒有符合條件的事項。換個篩選，或在下面加一天。'));
+
+  keys.forEach(function(k){
+    var rows=map[k];
+    var done=rows.filter(function(r){return r.status==='已完成';}).length;
+    var day=el('div','day'+(openDays[k]?' open':''));
+    day.dataset.dayzone=k;
+    var hd=el('div','dayhd');hd.dataset.day=k;
+    hd.appendChild(el('span','chev','▶'));
+    if(k==='未定日期'){
+      hd.appendChild(el('span','cal serif','未定日期'));
+    }else{
+      var dd=parseD(k);
+      var di=el('input','caldate');di.type='date';di.value=k;di.dataset.daydate=k;di.title='改這裡，這一天的事項會整組挪到新日期';
+      hd.appendChild(di);
+      hd.appendChild(el('span','wd','週'+WD[dd.getDay()]));
+      var n=daysTo(k),cd=el('span','cd');
+      if(n===0){cd.textContent='今天';cd.className='cd soonest';}
+      else if(n>0){cd.textContent=n+' 天後';if(n<=14)cd.className='cd soonest';}
+      else{cd.textContent=(-n)+' 天前';if(done<rows.length)cd.className='cd past';}
+      hd.appendChild(cd);
+    }
+    hd.appendChild(el('span','grow'));
+    hd.appendChild(el('span','cnt',done+' / '+rows.length));
+    var mini=el('span','mini'),mi=el('i');mi.style.width=(rows.length?done/rows.length*100:0)+'%';
+    mini.appendChild(mi);hd.appendChild(mini);
+    day.appendChild(hd);
+
+    var peek=el('div','peek');peek.dataset.day=k;
+    rows.forEach(function(r){
+      var li=el('div','pk'+(r.status==='已完成'?' done':'')+(r.ms?' ms':''));
+      li.appendChild(el('span','pkdot'));
+      if(r.time)li.appendChild(el('span','pkt',r.time));
+      li.appendChild(el('span','pkname',r.task||'（未命名事項）'));
+      if(r.owner)li.appendChild(el('span','pkown',r.owner));
+      peek.appendChild(li);
+    });
+    day.appendChild(peek);
+
+    var body=el('div','daybody');
+    rows.forEach(function(r){body.appendChild(taskEl(r));});
+    var add=el('div','addrow');
+    var ab=el('button','btn','＋ 這天再加一件');ab.dataset.addtask=k;
+    add.appendChild(ab);
+    body.appendChild(add);
+    day.appendChild(body);
+    p.appendChild(day);
+  });
+
+  var ad=el('div','addday');
+  var di=el('input');di.type='date';di.id='newday';
+  var ab2=el('button','btn','新增這一天');
+  ab2.addEventListener('click',function(){
+    var v=document.getElementById('newday').value;
+    if(!v){toast('先選一個日期。');return;}
+    openDays[v]=true;addTask(v);
+  });
+  ad.appendChild(di);ad.appendChild(ab2);
+  ad.appendChild(el('span','hint','還沒定日期的事，先丟到未定日期：'));
+  var ab3=el('button','btn','加到未定日期');
+  ab3.addEventListener('click',function(){openDays['未定日期']=true;addTask('');});
+  ad.appendChild(ab3);
+  p.appendChild(ad);
+}
+function allDays(v){
+  state.rundown.forEach(function(r){openDays[r.date||'未定日期']=v;});
+  render();
+}
+function addTask(date){
+  state.rundown.push({id:uid(),date:date||'',time:'',task:'',cat:'',owner:'雙方',liaison:'',vendor:'',status:'未開始',detail:'',steps:[],ms:'',info:'',vids:[]});
+  save();render();
+}
+
+/* ================= 供應商 ================= */
+function scoreOf(r,who){
+  var s=0,t=0;
+  DIMS.forEach(function(d){
+    var v=Number(r[who+'_'+d.k]);
+    if(v>0){s+=v*d.w;t+=d.w;}
+  });
+  return t?s/t:null;
+}
+function fmtS(v){return v===null?'—':v.toFixed(1);}
+function vendorEl(r){
+  var wrap=el('div','vend');
+  var hd=el('div','vhd');
+  function add(k,type,opts,cls){
+    var e;
+    if(opts){
+      e=el('select',cls);
+      opts.forEach(function(o){var op=el('option',null,o);op.value=o;e.appendChild(op);});
+      if(opts.indexOf(r[k])<0){var op=el('option',null,r[k]||'');op.value=r[k]||'';e.appendChild(op);}
+      e.value=r[k]||'';
+      e.className=(cls?cls+' ':'')+'st-'+(r[k]||'');
+    }else{e=el('input',cls);e.type=type||'text';e.value=r[k]==null?'':r[k];}
+    e.dataset.id=r.id;e.dataset.k=k;e.dataset.tab='vendors';
+    hd.appendChild(e);
+    return e;
+  }
+  add('cat',null,VCATS);
+  add('name').placeholder='名稱 / 團隊';
+  add('who').placeholder='聯絡人 / 微信';
+  add('free',null,['待問','可','不可','已鎖']);
+  add('price','number',null,'money').placeholder='報價 ¥';
+  var nt=el('span','twd',twd(r.price));nt.dataset.twdp=r.id;
+  hd.appendChild(nt);
+  var m=scoreOf(r,'m'),h=scoreOf(r,'h');
+  hd.appendChild(el('span','sc',fmtS(m)));
+  hd.appendChild(el('span','sc',fmtS(h)));
+  var tot=(m!==null&&h!==null)?(m+h)/2:(m!==null?m:h);
+  var gap=(m!==null&&h!==null)&&Math.abs(m-h)>=1.2;
+  hd.appendChild(el('span','sc tot'+(gap?' gap':''),fmtS(tot)));
+  add('status',null,['候選','已諮詢','已面談','已定','已淘汰']);
+  var scored=(m!==null||h!==null);
+  var ex=el('button','vtoggle'+(openVend[r.id]?' open':(scored?'':' empty')),openVend[r.id]?'收起 ▾':(scored?'看評分 ▸':'打分 ▸'));
+  ex.dataset.vexp=r.id;ex.title='展開兩人各自評分';
+  hd.appendChild(ex);
+  hd.appendChild(delBtn(r.id,'vendors'));
+  wrap.appendChild(hd);
+
+  if(openVend[r.id]){
+    var d=el('div','vdetail');
+    var tb=el('table','stab'),th=el('tr');
+    ['維度','權重','毛','哈利','差距'].forEach(function(t){th.appendChild(el('th',null,t));});
+    tb.appendChild(th);
+    DIMS.forEach(function(dim){
+      var tr=el('tr');
+      tr.appendChild(el('td',null,dim.l));
+      tr.appendChild(el('td','w',Math.round(dim.w*100)+'%'));
+      ['m','h'].forEach(function(w){
+        var td=el('td'),s=el('select');
+        ['','1','2','3','4','5'].forEach(function(o){var op=el('option',null,o===''?'—':o);op.value=o;s.appendChild(op);});
+        s.value=r[w+'_'+dim.k]||'';
+        s.dataset.id=r.id;s.dataset.k=w+'_'+dim.k;s.dataset.tab='vendors';s.dataset.rerender='1';
+        td.appendChild(s);tr.appendChild(td);
+      });
+      var a=Number(r['m_'+dim.k]),b=Number(r['h_'+dim.k]);
+      var gp=(a>0&&b>0)?Math.abs(a-b):null;
+      var td5=el('td','w',gp===null?'—':(gp>=2?'差 '+gp+' 分，要聊':String(gp)));
+      if(gp>=2)td5.style.color='var(--chop)';
+      tr.appendChild(td5);
+      tb.appendChild(tr);
+    });
+    d.appendChild(tb);
+    if(gap)d.appendChild(el('div','flag','兩人綜合分差 '+Math.abs(m-h).toFixed(1)+' 分，先別定'));
+
+    var rs=el('div','reasons');
+    [['why_m','毛的理由'],['why_h','哈利的理由']].forEach(function(pp){
+      var box=el('div');
+      box.appendChild(el('label',null,pp[1]));
+      var ta=el('textarea');ta.value=r[pp[0]]||'';ta.placeholder='為什麼給這個分？最在意哪一點？';
+      ta.dataset.id=r.id;ta.dataset.k=pp[0];ta.dataset.tab='vendors';
+      box.appendChild(ta);rs.appendChild(box);
+    });
+    d.appendChild(rs);
+    var used=tasksUsing(r.id);
+    if(used.length){
+      var ub=el('div','usedby','被引用於：'+used.join('　·　'));
+      d.appendChild(ub);
+    }
+    var nt2=el('textarea');nt2.value=r.note||'';nt2.placeholder='備註、作品連結、報價含什麼不含什麼、合約條款……';
+    nt2.style.marginTop='10px';
+    nt2.dataset.id=r.id;nt2.dataset.k='note';nt2.dataset.tab='vendors';
+    d.appendChild(nt2);
+    wrap.appendChild(d);
+  }
+  return wrap;
+}
+function renderVendors(p){
+  var f=el('div','filters');
+  var s=el('select');var o0=el('option',null,'全部類別');o0.value='';s.appendChild(o0);
+  VCATS.forEach(function(o){var e=el('option',null,o);e.value=o;s.appendChild(e);});
+  s.value=filt.vendors.cat;
+  s.addEventListener('change',function(){filt.vendors.cat=s.value;render();});
+  f.appendChild(s);
+  var locked=state.vendors.filter(function(r){return r.status==='已定';}).length;
+  f.appendChild(el('span','hint','候選 '+state.vendors.length+' 家 · 已定 '+locked+' 家'));
+  f.appendChild(el('span','spacer'));
+  f.appendChild(fxBox());
+  p.appendChild(f);
+
+  var vw=el('div','vwrap'),inner=el('div','vinner');
+  var head=el('div','vhead');
+  ['類別','名稱 / 團隊','聯絡人','檔期','報價 ¥','折台幣','毛','哈利','綜合','狀態','評分',''].forEach(function(t,i){
+    head.appendChild(el('span',(i>=6&&i<=8)?'c':'',t));
+  });
+  inner.appendChild(head);
+  state.vendors.forEach(function(r){
+    if(!passFilter('vendors',r))return;
+    inner.appendChild(vendorEl(r));
+  });
+  vw.appendChild(inner);p.appendChild(vw);
+
+  var add=el('button','btn rowadd','＋ 新增一家');
+  add.addEventListener('click',function(){
+    var r=newVendor(filt.vendors.cat||VCATS[0]);
+    state.vendors.push(r);openVend[r.id]=true;save();render();
+  });
+  p.appendChild(add);
+  p.appendChild(el('div','legend','綜合分 = 作品匹配 35% + 價格 20% + 溝通 20% + 口碑 15% + 合約條款 10%，毛和哈利各自算一個分，最後取兩人平均。兩人差 1.2 分以上會標紅——那通常不是誰對誰錯，是你們在意的東西不一樣，值得先聊完再定。'));
+}
+
+/* ================= 匯率 ================= */
+function fxBox(){
+  var w=el('span','fx');
+  w.appendChild(el('span',null,'匯率 1 CNY ='));
+  var i=el('input');i.type='number';i.step='0.01';i.value=fx();
+  i.addEventListener('input',function(){
+    var v=Number(i.value);if(v>0){state.fx=v;save();refreshTwd();}
+  });
+  w.appendChild(i);
+  w.appendChild(el('span',null,'TWD'));
+  return w;
+}
+function refreshTwd(){
+  [].forEach.call(document.querySelectorAll('[data-twd]'),function(td){
+    var tab=td.dataset.twdtab,r=state[tab].filter(function(x){return x.id===td.dataset.twd;})[0];
+    if(r)td.textContent=twd(twdSrc(tab,r));
+  });
+  [].forEach.call(document.querySelectorAll('[data-twdp]'),function(sp){
+    var r=state.vendors.filter(function(x){return x.id===sp.dataset.twdp;})[0];
+    if(r)sp.textContent=twd(r.price);
+  });
+  updateSummary();renderBrief();
+}
+function updateSummary(){
+  var box=document.getElementById('sum');if(!box)return;
+  var tab=currentTab();
+  if(tab==='budget'){
+    var b=budgetTotals();
+    box.textContent='預算 '+both(b.plan)+' · 實際 '+both(b.real)+' · 已付 '+both(b.paid)+' · 未付 '+both(b.real-b.paid);
+  }else if(tab==='guests'){
+    var g=guestStats();
+    box.textContent='確認出席 '+g.n+' 人 · 約 '+Math.ceil(g.n/10)+' 桌 · 禮金合計 '+both(g.gift)+' · 待定 '+g.pend+' 戶';
+  }
+}
+
+/* ================= 總覽 ================= */
+function renderDash(p){
+  var done=0,total=state.rundown.length;
+  state.rundown.forEach(function(r){if(r.status==='已完成')done++;});
+  var over=overdueCount(),b=budgetTotals(),g=guestStats();
+
+  var grid=el('div','grid');
+  function cell(k,v,sub,nt,pct,isOver){
+    var c=el('div','cell');
+    c.appendChild(el('div','k',k));
+    var vv=el('div','v');vv.innerHTML=v;c.appendChild(vv);
+    if(nt)c.appendChild(el('div','nt',nt));
+    if(sub)c.appendChild(el('div','k',sub));
+    if(pct!=null){var bar=el('div','bar'+(isOver?' over':'')),i=el('i');i.style.width=Math.min(100,pct)+'%';bar.appendChild(i);c.appendChild(bar);}
+    grid.appendChild(c);
+  }
+  cell('事項進度',done+' <small>/ '+total+'</small>',over?(over+' 項已過期未完成'):'暫無逾期','',total?done/total*100:0,false);
+  cell('預算 / 實際',cny(b.real)+' <small>/ '+cny(b.plan)+'</small>','已支付 '+cny(b.paid),
+       twd(b.real)+' / '+twd(b.plan),b.plan?b.real/b.plan*100:0,b.plan>0&&b.real>b.plan);
+  var inc=b.incomeReal||b.income;
+  cell('禮金預估',cny(inc),'淨支出約 '+cny(b.real-inc),twd(inc));
+  cell('確認出席',g.n+' <small>人 · 約 '+Math.ceil(g.n/10)+' 桌</small>','男方 '+g.m+' · 女方 '+g.f+' · 待定 '+g.pend+' 戶');
+  p.appendChild(grid);
+
+  var two=el('div','two');
+  var soon=el('div','soon');
+  soon.appendChild(el('h3',null,'接下來 45 天'));
+  var ul=el('ul');
+  var list=state.rundown.filter(function(r){
+    if(r.status==='已完成'||r.status==='已取消')return false;
+    var d=daysTo(r.date);return d!==null&&d<=45;
+  }).sort(function(a,b){return (a.date||'')<(b.date||'')?-1:1;});
+  if(!list.length)ul.appendChild(el('li','empty','這段時間沒有排事項。去「所有事項 Rundown」補幾條，或者休息一下。'));
+  list.slice(0,15).forEach(function(r){
+    var li=el('li'),d=daysTo(r.date);
+    li.appendChild(el('span','d',fmtMD(r.date)+(d<0?'（已過期）':d===0?'（今天）':'（'+d+' 天）')));
+    li.appendChild(el('span',null,r.task));
+    li.appendChild(el('span','o',r.owner||''));
+    ul.appendChild(li);
+  });
+  soon.appendChild(ul);
+  two.appendChild(soon);
+
+  var pr=el('div','principles');
+  pr.appendChild(el('h3',null,'決策原則'));
+  var ta=el('textarea');ta.value=state.principles||'';
+  ta.addEventListener('input',function(){state.principles=ta.value;save();});
+  pr.appendChild(ta);
+  two.appendChild(pr);
+  p.appendChild(two);
+}
+
+/* ================= 渲染入口 ================= */
+function currentTab(){
+  var g=GROUPS.filter(function(x){return x.k===view.g;})[0];
+  if(!g)return 'dash';
+  if(!g.subs)return g.k;
+  return view.s||g.subs[0].k;
+}
+function renderNav(){
+  var nav=document.getElementById('nav');nav.innerHTML='';
+  GROUPS.forEach(function(g){
+    var b=el('button','tab'+(g.k===view.g?' on':''),g.n);
+    b.addEventListener('click',function(){
+      view.g=g.k;view.s=g.subs?(lastSub[g.k]||g.subs[0].k):null;confirmDel=null;render();
+    });
+    nav.appendChild(b);
+  });
+  var sn=document.getElementById('subnav');sn.innerHTML='';
+  var cg=GROUPS.filter(function(x){return x.k===view.g;})[0];
+  if(cg&&cg.subs){
+    var cur=currentTab();
+    cg.subs.forEach(function(s){
+      var b=el('button','sub'+(s.k===cur?' on':''),s.n);
+      if(s.k==='rundown'&&overdueCount())b.appendChild(el('span','badge','逾期 '+overdueCount()));
+      b.addEventListener('click',function(){view.s=s.k;lastSub[view.g]=s.k;confirmDel=null;render();});
+      sn.appendChild(b);
+    });
+  }
+}
+function render(){
+  pendingRender=false;
+  renderNav();renderBrief();
+  var tab=currentTab();
+  var p=document.getElementById('panel');p.innerHTML='';
+  if(tab==='dash')return renderDash(p);
+
+  var head=el('div','sec-head');
+  head.appendChild(el('h2',null,TITLES[tab]||''));
+  p.appendChild(head);
+  if(HINTS[tab])p.appendChild(el('p','hint',HINTS[tab]));
+
+  if(tab==='rundown')return renderRundown(p);
+  if(tab==='vendors')return renderVendors(p);
+  if(tab==='dayplan')return renderDayplan(p);
+
+  var f=el('div','filters');
+  function sel(opts,val,on,ph){
+    var s=el('select');var o0=el('option',null,ph);o0.value='';s.appendChild(o0);
+    opts.forEach(function(o){var e=el('option',null,o);e.value=o;s.appendChild(e);});
+    s.value=val||'';s.addEventListener('change',function(){on(s.value);render();});
+    return s;
+  }
+  if(tab==='guests'){
+    f.appendChild(sel(['男方','女方','共同'],filt.guests.side,function(v){filt.guests.side=v;},'男女方全部'));
+    f.appendChild(el('span','hint','',''));
+  }
+  if(tab==='budget')f.appendChild(sel(['支出','收入'],filt.budget.kind,function(v){filt.budget.kind=v;},'收支全部'));
+  if(tab==='budget'||tab==='guests'){
+    var sum=el('span','hint');sum.id='sum';f.appendChild(sum);
+    f.appendChild(el('span','spacer'));
+    f.appendChild(fxBox());
+  }
+  if(f.children.length)p.appendChild(f);
+
+  p.appendChild(buildTable(tab));
+  updateSummary();
+  var add=el('button','btn rowadd','＋ 新增一列');
+  add.addEventListener('click',function(){addRow(tab);});
+  p.appendChild(add);
+  if(tab==='docs')p.appendChild(el('div','legend','兩岸婚姻登記的材料與流程會調整，這裡只是提醒清單，實際以民政局、戶政事務所和海基會當次公告為準。'));
+  if(tab==='dayplan')p.appendChild(el('div','legend','建議排完後印三份：統籌一份、雙方父母各一份。留 30 分鐘緩衝，一定會用上。'));
+  if(tab==='budget')p.appendChild(el('div','legend','金額一律填人民幣，台幣欄依匯率自動換算。匯率預設 4.70（2026 年 9 月約值），實際結匯以當天銀行牌價為準，可以隨時改。'));
+}
+
+/* ================= 雙人同步設定面板 ================= */
+var syncOpen=false;
+function shareLink(){
+  var base=location.origin+location.pathname;
+  return base+'#room='+encodeURIComponent(room.room)+'&k='+encodeURIComponent(room.secret);
+}
+function renderSync(){
+  var box=document.getElementById('syncbox');
+  box.innerHTML='';
+  if(!syncOpen)return;
+  var p=el('div','syncpanel');
+  p.appendChild(el('h3',null,'雙人同步'));
+  if(!room){
+    p.appendChild(el('div','note','建一個只有你們倆知道的房間，兩邊就會共用同一份資料，改動幾秒內互相看得到。房間碼和密鑰只存在各自的瀏覽器，不會寫進備份檔。'));
+    var r1=el('div','row2');
+    var mk=el('button','btn primary','建立房間（把目前這份上傳）');
+    mk.addEventListener('click',function(){
+      room={room:randId(10),secret:randId(16),who:''};
+      saveRoom();syncOpen=true;
+      cloudPush();startPolling();renderSync();
+      toast('房間已建立，把下面的連結傳給對方');
+    });
+    r1.appendChild(mk);
+    p.appendChild(r1);
+    var r2=el('div','row2');
+    var ri=el('input','wide');ri.placeholder='對方給的房間碼';ri.id='joinroom';
+    var ki=el('input','wide');ki.placeholder='密鑰';ki.id='joinkey';
+    var jb=el('button','btn','加入房間');
+    jb.addEventListener('click',function(){
+      var a=document.getElementById('joinroom').value.trim(),b=document.getElementById('joinkey').value.trim();
+      if(!a||!b){toast('房間碼和密鑰都要填。');return;}
+      room={room:a,secret:b,who:''};saveRoom();
+      startSync();renderSync();
+    });
+    r2.appendChild(ri);r2.appendChild(ki);r2.appendChild(jb);
+    p.appendChild(r2);
+    p.appendChild(el('div','note','加入房間會用雲端那份覆蓋你這台目前的內容，加入前記得先「匯出備份」。'));
+  }else{
+    var who=el('div','row2');
+    who.appendChild(el('span','note','我是'));
+    var wi=el('input');wi.placeholder='毛 / 哈利';wi.value=room.who||'';
+    wi.addEventListener('input',function(){room.who=wi.value.trim();saveRoom();});
+    who.appendChild(wi);
+    who.appendChild(el('span','note','（對方會看到是誰剛改過）'));
+    p.appendChild(who);
+    p.appendChild(el('div','note','把這條連結傳給對方，他打開就自動進同一個房間：'));
+    var lk=el('div','link',shareLink());
+    p.appendChild(lk);
+    var r3=el('div','row2');r3.style.marginTop='8px';
+    var cp=el('button','btn','複製連結');
+    cp.addEventListener('click',function(){
+      var t=shareLink();
+      if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){toast('已複製');},function(){toast('複製失敗，長按上面那行自己複製');});
+      else toast('長按上面那行複製');
+    });
+    var pl=el('button','btn','立刻拉取對方版本');
+    pl.addEventListener('click',function(){cloudPull(true);toast('已從雲端拉取');});
+    var lv=el('button','btn','離開房間（保留本機資料）');
+    lv.addEventListener('click',function(){
+      askConfirm('離開後這台就不再同步，本機資料保留。確定嗎？',function(){
+        room=null;saveRoom();clearInterval(window.__syncTimer);
+        syncState('','');document.getElementById('syncstate').hidden=true;
+        renderSync();toast('已離開房間');
+      });
+    });
+    r3.appendChild(cp);r3.appendChild(pl);r3.appendChild(lv);
+    p.appendChild(r3);
+    p.appendChild(el('div','note','兩邊每十秒對一次，也會在切回頁面時立刻對一次。同一格如果兩人幾秒內同時改，後存的那一次會蓋掉前一次——大改動前先喊一聲比較保險。'));
+  }
+  box.appendChild(p);
+}
+
+/* ================= 頁內提示與確認（沙箱裡 alert/confirm 會被忽略） ================= */
+var toastTimer=null;
+function toast(msg){
+  var t=document.getElementById('toast');if(!t)return;
+  t.textContent=msg;t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){t.classList.remove('on');},2600);
+}
+var cbarFn=null;
+function askConfirm(msg,fn){
+  var bar=document.getElementById('cbar');
+  document.getElementById('cbarmsg').textContent=msg;
+  cbarFn=fn;bar.hidden=false;
+  bar.scrollIntoView({block:'nearest'});
+}
+function closeConfirm(){document.getElementById('cbar').hidden=true;cbarFn=null;}
+document.getElementById('cbarok').addEventListener('click',function(){
+  var f=cbarFn;closeConfirm();if(f)f();
+});
+document.getElementById('cbarno').addEventListener('click',closeConfirm);
+
+var confirmDel=null,delTimer=null;
+function delBtn(id,tab,plain){
+  var isC=confirmDel===id;
+  var b=el('button',(plain?'btn':'del')+(isC?' confirm':''),
+    isC?(plain?'再按一次＝刪除':'確定?'):(plain?'刪除這件事':'×'));
+  b.dataset.del=id;b.dataset.tab=tab;
+  b.title=isC?'再按一次就刪除':'刪除';
+  return b;
+}
+
+/* ================= 事件 ================= */
+/* 滑鼠按著的時候先不要重畫，否則按鈕會在 click 之前被換掉，那一下就白點了 */
+var pendingRender=false,pointerDown=false;
+function renderSoon(){ if(pointerDown){pendingRender=true;} else render(); }
+document.addEventListener('pointerdown',function(){pointerDown=true;},true);
+document.addEventListener('pointerup',function(){
+  pointerDown=false;
+  setTimeout(function(){if(pendingRender)render();},300);
+},true);
+
+document.addEventListener('input',function(e){
+  var t=e.target;if(!t.dataset)return;
+  if(t.dataset.steptxt){
+    var pr=state.rundown.filter(function(r){return r.id===t.dataset.pid;})[0];
+    if(pr){var s=pr.steps.filter(function(x){return x.id===t.dataset.steptxt;})[0];if(s){s.t=t.value;save();}}
+    return;
+  }
+  if(!t.dataset.tab)return;
+  var tab=t.dataset.tab,row=state[tab].filter(function(r){return r.id===t.dataset.id;})[0];
+  if(!row)return;
+  row[t.dataset.k]=t.value;
+  if(t.tagName==='TEXTAREA'&&t.closest('td'))autoGrow(t);
+  if(t.tagName==='SELECT'&&t.closest('td'))t.className='st-'+t.value;
+  if(['plan','real','paid','gift','price'].indexOf(t.dataset.k)>=0)refreshTwd();
+  save();
+},true);
+
+document.addEventListener('change',function(e){
+  var t=e.target;if(!t.dataset)return;
+  if(t.dataset.chk){
+    var r=state.rundown.filter(function(x){return x.id===t.dataset.chk;})[0];
+    if(r){r.status=t.checked?'已完成':'未開始';save();renderSoon();}
+    return;
+  }
+  if(t.dataset.stepchk){
+    var pr=state.rundown.filter(function(x){return x.id===t.dataset.pid;})[0];
+    if(pr){var s=pr.steps.filter(function(x){return x.id===t.dataset.stepchk;})[0];if(s){s.done=t.checked;save();renderSoon();}}
+    return;
+  }
+  if(t.dataset.rerender){save();renderSoon();}
+},true);
+
+document.addEventListener('click',function(e){
+  var hd=e.target.closest?e.target.closest('.dayhd,.peek'):null;
+  if(hd&&!e.target.closest('input,select,button')){
+    var k=hd.dataset.day;openDays[k]=!openDays[k];render();return;
+  }
+  var b=e.target.closest?e.target.closest('button'):null;
+  if(!b||!b.dataset)return;
+  var d=b.dataset;
+  if(d.msopen){openMilestone(d.msopen);return;}
+  if(d.venopen){
+    if(d.venlist==='dayplan')openFlow[d.venopen]=true;else openTasks[d.venopen]=true;
+    render();
+    var n=document.querySelector('[data-rowid="'+d.venopen+'"]');if(n)n.scrollIntoView({block:'center'});
+    return;
+  }
+  if(d.fexp){openFlow[d.fexp]=!openFlow[d.fexp];render();return;}
+  if(d.rmove){moveRow(d.rtab,d.rmove,d.dir);return;}
+  if(d.unlink){
+    var pr=state[d.untab].filter(function(x){return x.id===d.pid;})[0];
+    var kk=REF[d.unkind].key;
+    if(pr){pr[kk]=(pr[kk]||[]).filter(function(v){return v!==d.unlink;});save();render();}
+    return;
+  }
+  if(d.refadd){
+    var pr2=state[d.reftab].filter(function(x){return x.id===d.refadd;})[0];
+    var nameEl=document.querySelector('[data-refname="'+d.refadd+'"]');
+    var catEl=document.querySelector('[data-refcat="'+d.refadd+'"]');
+    var nm=nameEl?nameEl.value.trim():'';
+    if(!nm){toast(d.refkind==='vendor'?'先填供應商名稱。':'先填姓名。');return;}
+    var it;
+    if(d.refkind==='vendor'){it=newVendor(catEl?catEl.value:VCATS[0]);it.name=nm;state.vendors.push(it);}
+    else{it={id:uid(),name:nm,role:'',from:catEl?catEl.value:'其他',tel:'',note:''};state.contacts.push(it);}
+    var key=REF[d.refkind].key;
+    if(pr2)pr2[key]=(pr2[key]||[]).concat([it.id]);
+    save();render();return;
+  }
+  if(d.ics){
+    var r0=state.rundown.filter(function(x){return x.id===d.ics;})[0];
+    if(r0)downloadIcs([r0],(r0.task||'備婚事項').slice(0,20));
+    return;
+  }
+  if(d.goto){
+    view.g=d.goto;view.s=d.gotosub||null;
+    if(d.gotosub)lastSub[d.goto]=d.gotosub;
+    render();window.scrollTo({top:0});
+    return;
+  }
+  if(d.exp){openTasks[d.exp]=!openTasks[d.exp];render();return;}
+  if(d.vexp){openVend[d.vexp]=!openVend[d.vexp];render();return;}
+  if(d.move){moveTask(d.move,d.dir);return;}
+  if(d.addtask!==undefined){addTask(d.addtask==='未定日期'?'':d.addtask);return;}
+  if(d.stepadd){
+    var r=state.rundown.filter(function(x){return x.id===d.stepadd;})[0];
+    if(r){r.steps.push({id:uid(),t:'',done:false});save();render();}
+    return;
+  }
+  if(d.stepdel){
+    var pr=state.rundown.filter(function(x){return x.id===d.pid;})[0];
+    if(pr){pr.steps=pr.steps.filter(function(x){return x.id!==d.stepdel;});save();render();}
+    return;
+  }
+  if(d.del){
+    var row=state[d.tab].filter(function(x){return x.id===d.del;})[0];
+    var label=row?(row.task||row.item||row.name||row.title||''):'';
+    if(confirmDel!==d.del){
+      confirmDel=d.del;render();
+      clearTimeout(delTimer);
+      delTimer=setTimeout(function(){if(confirmDel){confirmDel=null;render();}},4500);
+      toast('再按一次就刪除'+(label?'「'+label+'」':'這一列'));
+      return;
+    }
+    confirmDel=null;clearTimeout(delTimer);
+    state[d.tab]=state[d.tab].filter(function(x){return x.id!==d.del;});
+    save();render();toast('已刪除');
+  }
+});
+
+/* 改一整天的日期 */
+document.addEventListener('change',function(e){
+  var t=e.target;
+  if(t.dataset&&t.dataset.daydate){moveDay(t.dataset.daydate,t.value);return;}
+  if(t.dataset&&t.dataset.linkadd&&t.value){
+    var r=state[t.dataset.linktab].filter(function(x){return x.id===t.dataset.linkadd;})[0];
+    var key=REF[t.dataset.linkkind].key;
+    if(r){r[key]=(r[key]||[]).concat([t.value]);save();renderSoon();}
+    return;
+  }
+  if(t.dataset&&t.dataset.dpauto){state.dpAuto=t.checked;if(t.checked)sortDayplan();save();renderSoon();return;}
+  if(t.dataset&&t.dataset.tab==='dayplan'&&t.dataset.k==='time'&&state.dpAuto!==false){sortDayplan();save();renderSoon();return;}
+},true);
+
+/* 拖放排序 */
+var dragId=null,dragRow=null,dragList='rundown';
+document.addEventListener('dragstart',function(e){
+  var row=e.target.closest?e.target.closest('.drow[data-rowid]'):null;
+  if(!row){return;}
+  dragId=row.dataset.rowid;dragList=row.dataset.list;dragRow=row;
+  row.classList.add('dragging');
+  e.dataTransfer.effectAllowed='move';
+  try{e.dataTransfer.setData('text/plain',dragId);}catch(err){}
+});
+document.addEventListener('dragend',function(){
+  dragId=null;
+  if(dragRow){dragRow.draggable=false;dragRow=null;}
+  [].forEach.call(document.querySelectorAll('.dragging,.dropbefore,.dropafter,.dropinto'),function(n){
+    n.classList.remove('dragging','dropbefore','dropafter','dropinto');
+  });
+});
+document.addEventListener('dragover',function(e){
+  if(!dragId)return;
+  var row=e.target.closest?e.target.closest('.drow[data-rowid]'):null;
+  if(row&&row.dataset.list!==dragList)row=null;
+  var day=dragList==='rundown'?(e.target.closest?e.target.closest('.dayhd'):null):null;
+  [].forEach.call(document.querySelectorAll('.dropbefore,.dropafter,.dropinto'),function(n){
+    n.classList.remove('dropbefore','dropafter','dropinto');
+  });
+  if(row&&row.dataset.rowid!==dragId){
+    e.preventDefault();
+    var r=row.getBoundingClientRect();
+    row.classList.add(e.clientY>r.top+r.height/2?'dropafter':'dropbefore');
+  }else if(day){
+    e.preventDefault();
+    var dz=day.closest('.day');if(dz)dz.classList.add('dropinto');
+  }
+});
+document.addEventListener('drop',function(e){
+  if(!dragId)return;
+  var row=e.target.closest?e.target.closest('.drow[data-rowid]'):null;
+  if(row&&row.dataset.list!==dragList)row=null;
+  var day=dragList==='rundown'?(e.target.closest?e.target.closest('.dayhd'):null):null;
+  e.preventDefault();
+  if(row&&row.dataset.rowid!==dragId){
+    var r=row.getBoundingClientRect();
+    var after=e.clientY>r.top+r.height/2;
+    if(dragList==='rundown')dropTask(dragId,row.dataset.rowid,after);
+    else dropRow(dragList,dragId,row.dataset.rowid,after);
+  }else if(day){
+    dropIntoDay(dragId,day.dataset.day);
+  }
+  dragId=null;
+});
+document.addEventListener('click',function(){ if(pendingRender)render(); });
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){openTasks={};openVend={};openFlow={};render();}
+});
+
+/* ================= 匯入匯出 ================= */
+document.getElementById('btnExport').addEventListener('click',function(){
+  var blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='備婚統籌台-'+todayISO()+'.json';
+  a.click();URL.revokeObjectURL(a.href);
+});
+document.getElementById('btnImport').addEventListener('click',function(){document.getElementById('file').click();});
+document.getElementById('file').addEventListener('change',function(e){
+  var f=e.target.files[0];if(!f)return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    try{
+      var d=JSON.parse(rd.result);
+      if(!d||!d.rundown)throw new Error('bad');
+      askConfirm('匯入會覆蓋目前所有內容，確定繼續？建議先匯出一份目前的備份。',function(){
+        state=migrate(d);save();applyTheme();renderRail();render();toast('已匯入');
+      });
+    }catch(err){toast('這個檔案讀不出來，請選擇從本頁匯出的 .json 備份。');}
+  };
+  rd.readAsText(f);
+  e.target.value='';
+});
+document.getElementById('btnReset').addEventListener('click',function(){
+  askConfirm('重設會清掉你填過的所有內容，換回預設清單。確定嗎？建議先匯出備份。',function(){
+    var th=state.theme;
+    state=fresh();state.theme=th;openDays={};openTasks={};openVend={};openFlow={};
+    save();openDefaults();applyTheme();renderRail();render();toast('已重設');
+  });
+});
+document.getElementById('btnIcs').addEventListener('click',function(){
+  var rows=state.rundown.filter(function(r){return r.date&&r.status!=='已完成'&&r.status!=='已取消';});
+  if(!rows.length){toast('沒有未完成又有日期的事項。');return;}
+  askConfirm('要匯出 '+rows.length+' 件未完成事項成一個 .ics 檔嗎？手機上點開就能整批加進行事曆。',function(){
+    downloadIcs(rows,'備婚統籌台-'+todayISO());
+  });
+});
+document.getElementById('btnSync').addEventListener('click',function(){
+  syncOpen=!syncOpen;renderSync();
+});
+document.getElementById('btnTheme').addEventListener('click',function(){
+  state.theme=(state.theme==='light')?'dark':'light';
+  applyTheme();save();
+});
+document.getElementById('btnPrint').addEventListener('click',function(){window.print();});
+
+/* ================= 啟動 ================= */
+function openDefaults(){
+  var future=[];
+  state.rundown.forEach(function(r){
+    var k=r.date||'未定日期',n=daysTo(r.date);
+    if(n!==null&&n<0&&r.status!=='已完成'&&r.status!=='已取消')openDays[k]=true;
+    if(n!==null&&n>=0)future.push(k);
+  });
+  future.sort();
+  future.slice(0,3).forEach(function(k){openDays[k]=true;});
+}
+function start(){
+  applyTheme();openDefaults();renderRail();render();
+  setInterval(renderRail,3600000);
+  if(room)startSync();
+}
+markSaved('讀取中…');
+loadRoom();
+if(STORE){
+  STORE.get().then(function(v){
+    var had=!!v;
+    try{state=migrate(JSON.parse(v));}catch(e){state=null;}
+    if(!state||!state.rundown){state=fresh();had=false;}
+    markSaved(had?'已儲存':'');start();
+    if(!had)save();
+  }).catch(function(){
+    state=fresh();markSaved('');start();save();
+  });
+}else{
+  state=fresh();markSaved('無法儲存 · 請匯出備份');start();
+}
+})();
