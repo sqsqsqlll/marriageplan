@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [claude/inspiring-pascal-da87o8]
+    branches: [main/planpage]
   workflow_dispatch:
 
 permissions:
@@ -39,6 +39,9 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # 仓库还没开 Pages 的话，这里直接帮忙开，省掉手动去 Settings 点一次
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
