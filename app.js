@@ -3,7 +3,11 @@
 
 /* ================= 常數 ================= */
 var KEY='wedding_plan_v1';
-var FX_DEFAULT=4.70; /* 2026 年 9 月 CNY→TWD 約 4.70 */
+var FX_DEFAULT=4.70;  /* 2026 年 9 月 CNY→TWD 約 4.70 */
+var FXJ_DEFAULT=21.0; /* 2026 年 9 月 CNY→JPY 約 21，蜜月用得上 */
+var CURS=[{k:'CNY',s:'¥',n:'人民幣'},{k:'TWD',s:'NT$',n:'台幣'},{k:'JPY',s:'JP¥',n:'日圓'}];
+var CUR_SYM={CNY:'¥',TWD:'NT$',JPY:'JP¥'};
+var CUR_KEYS=['CNY','TWD','JPY'];
 var OWNERS=['毛','哈利','雙方','男方父母','女方父母','親友','伴郎伴娘','供應商','待定'];
 var CATS=['證件登記','場地餐飲','婚紗禮服','妝造','攝影','錄影','婚慶佈置','主持','喜糖伴手禮','三金對戒','喜帖賓客','習俗禮節','婚車交通','住宿接待','蜜月','其他'];
 var STATUS=['未開始','進行中','待確認','已完成','已取消'];
@@ -40,15 +44,15 @@ var HINTS={
   dayplan:'婚宴當天的分鐘級流程。定稿後印給統籌、攝影、化妝師和雙方父母各一份。',
   contacts:'婚禮當天手忙腳亂時，能一屏找到所有人的電話。',
   vendors:'同一類至少比三家。五個維度毛和哈利各自打分，兩人分數差得多的地方，就是該坐下來聊的地方。',
-  budget:'收入列記禮金和父母贊助，支出列記花費。金額一律填人民幣，台幣依匯率自動換算。'
+  budget:'收入列記禮金和父母贊助，支出列記花費。每一列各自選幣別——人民幣、台幣、日圓都能直接填，折算欄會換出另外兩種，統計一律折成人民幣。'
 };
 
 /* ================= 表結構 ================= */
-function c(k,l,t,o,w){return {k:k,l:l,t:t||'text',o:o||null,w:w||null};}
+function c(k,l,t,o,w,m){return {k:k,l:l,t:t||'text',o:o||null,w:w||null,m:m||null};}
 var SCHEMAS={
   dayplan:{cols:[c('time','時間','text',null,86),c('lucky','吉時','text',null,80),c('item','環節','text',null,200),c('place','地點','text',null,146),c('who','參與人','text',null,146),c('owner','負責人','select',OWNERS,98),c('need','物料/供應商','text',null,176),c('note','備註','text',null,196)]},
   ideas:{cols:[c('date','記錄日','date',null,130),c('type','性質','select',['靈感','要做','不做','待決策','已決定','踩坑'],98),c('title','標題','text',null,196),c('body','內容','textarea',null,320),c('by','提出人','select',OWNERS,98),c('link','參考連結','text',null,166),c('status','狀態','select',['待議','採納','擱置','已落地'],90)]},
-  budget:{cols:[c('cat','類別','select',CATS,112),c('item','項目','text',null,196),c('kind','收支','select',['支出','收入'],78),c('plan','預算 ¥','number',null,96),c('real','實際 ¥','number',null,96),c('twd','台幣 NT$','twd',null,104),c('paid','已付 ¥','number',null,96),c('payer','付款/收款方','select',OWNERS,108),c('to','對方/供應商','text',null,146),c('status','狀態','select',['未付','定金已付','尾款待付','已結清','待收'],102),c('note','備註','text',null,176)]},
+  budget:{cols:[c('cat','類別','select',CATS,112),c('item','項目','text',null,196),c('kind','收支','toggle',['支出','收入'],76),c('cur','幣別','toggle',CUR_KEYS,70,CUR_SYM),c('plan','預算','number',null,92),c('real','實際','number',null,92),c('paid','已付','number',null,92),c('conv','折算','conv',null,152),c('payer','付款/收款方','select',OWNERS,108),c('to','對方/供應商','text',null,146),c('status','狀態','select',['未付','定金已付','尾款待付','已結清','待收'],102),c('note','備註','text',null,176)]},
   guests:{cols:[c('side','方','select',['男方','女方','共同'],74),c('name','姓名','text',null,108),c('rel','與主人關係','text',null,126),c('liaison','對接人','select',OWNERS,98),c('go','出席','select',['待定','出席','不出席','線上'],86),c('n','人數','number',null,68),c('table','桌次','text',null,68),c('gift','禮金 ¥','number',null,92),c('twd','折台幣','twd',null,96),c('back','回禮/伴手禮','text',null,112),c('tel','聯絡方式','text',null,136),c('note','備註','text',null,156)]},
   docs:{cols:[c('item','事項','text',null,186),c('who','適用方','select',['毛','哈利','雙方'],86),c('need','所需材料','textarea',null,300),c('org','辦理機構','text',null,156),c('due','截止/時效','text',null,136),c('owner','負責人','select',OWNERS,96),c('status','狀態','select',STATUS,92),c('note','備註','text',null,176)]},
   customs:{cols:[c('item','環節','text',null,146),c('gz','廣東習俗','textarea',null,246),c('tw','台灣習俗','textarea',null,246),c('deal','共識方案','textarea',null,246),c('owner','協調人','select',OWNERS,96),c('status','狀態','select',['待談','溝通中','已共識','擱置'],92)]},
@@ -214,6 +218,12 @@ function cny(n){return '¥'+fmtN(n);}
 function twd(n){return 'NT$'+fmtN(Math.round((Number(n)||0)*fx()));}
 function both(n){return cny(n)+'　'+twd(n);}
 function fx(){return (state&&Number(state.fx))||FX_DEFAULT;}
+function fxj(){return (state&&Number(state.fxj))||FXJ_DEFAULT;}
+/* 一律以人民幣為軸：rateOf 是 1 CNY 換得多少該幣 */
+function rateOf(cur){return cur==='TWD'?fx():(cur==='JPY'?fxj():1);}
+function toCny(n,cur){var r=rateOf(cur);return r?(Number(n)||0)/r:0;}
+function inCur(cnyAmt,cur){return (Number(cnyAmt)||0)*rateOf(cur);}
+function money(n,cur){return (CUR_SYM[cur]||'¥')+fmtN(n);}
 function fmtMD(s){var p=String(s).split('-');return (+p[1])+'/'+(+p[2]);}
 function todayISO(){var d=new Date(),m=('0'+(d.getMonth()+1)).slice(-2),dd=('0'+d.getDate()).slice(-2);return d.getFullYear()+'-'+m+'-'+dd;}
 
@@ -231,7 +241,7 @@ function newVendor(cat){
 }
 function fresh(){
   return {
-    v:3,fx:FX_DEFAULT,dpAuto:true,theme:'dark',
+    v:3,fx:FX_DEFAULT,fxj:FXJ_DEFAULT,dpAuto:true,theme:'dark',
     principles:DEFAULT_PRINCIPLES,
     rundown:DEFAULT_RUNDOWN.map(function(a){
       return {id:uid(),date:a[0],time:a[1],task:a[2],cat:a[3],owner:a[4],liaison:a[5],vendor:a[6],status:a[7]||'未開始',detail:a[8]||'',
@@ -239,7 +249,7 @@ function fresh(){
     }),
     dayplan:DEFAULT_DAYPLAN.map(function(a){return {id:uid(),time:a[0],lucky:a[1],item:a[2],place:a[3],who:a[4],owner:a[5],need:a[6],note:a[7],cids:[],vids:[]};}),
     ideas:DEFAULT_IDEAS.map(function(a){return {id:uid(),date:a[0],type:a[1],title:a[2],body:a[3],by:a[4],link:a[5],status:a[6]};}),
-    budget:DEFAULT_BUDGET.map(function(a){return {id:uid(),cat:a[0],item:a[1],kind:a[2],plan:'',real:'',paid:'',payer:a[3],to:a[4],status:a[5],note:a[6]};}),
+    budget:DEFAULT_BUDGET.map(function(a){return {id:uid(),cat:a[0],item:a[1],kind:a[2],cur:'CNY',plan:'',real:'',paid:'',payer:a[3],to:a[4],status:a[5],note:a[6]};}),
     guests:[{id:uid(),side:'男方',name:'',rel:'',liaison:'哈利',go:'待定',n:1,table:'',gift:'',back:'',tel:'',note:''},
             {id:uid(),side:'女方',name:'',rel:'',liaison:'毛',go:'待定',n:1,table:'',gift:'',back:'',tel:'',note:''}],
     vendors:['跟拍','婚紗/旅拍','婚紗禮服','妝造跟妝','攝影','錄影','主持','場地酒店','婚慶統籌','花藝佈置','喜糖伴手禮','三金對戒','婚車'].map(newVendor),
@@ -251,6 +261,9 @@ function fresh(){
 function migrate(s){
   if(!s)return fresh();
   if(!s.fx)s.fx=FX_DEFAULT;
+  if(!s.fxj)s.fxj=FXJ_DEFAULT;
+  /* 拆幣別之前的資料一律是人民幣 */
+  (s.budget||[]).forEach(function(r){if(!r.cur)r.cur='CNY';});
   (s.rundown||[]).forEach(function(r){
     if(r.steps==null)r.steps=[];
     if(r.detail==null)r.detail=r.note||'';
@@ -450,7 +463,8 @@ function save(){
 function budgetTotals(){
   var t={plan:0,real:0,paid:0,income:0,incomeReal:0};
   state.budget.forEach(function(r){
-    var p=Number(r.plan)||0,re=Number(r.real)||0,pa=Number(r.paid)||0;
+    var cu=r.cur||'CNY';
+    var p=toCny(r.plan,cu),re=toCny(r.real,cu),pa=toCny(r.paid,cu);
     if(r.kind==='收入'){t.income+=p;t.incomeReal+=re;}else{t.plan+=p;t.real+=re;t.paid+=pa;}
   });
   return t;
@@ -562,12 +576,30 @@ function twdSrc(tab,r){
   if(tab==='guests')return r.gift;
   return 0;
 }
+/* 折算欄：這一列填的是哪種幣別，就換算出另外兩種 */
+function convText(tab,r){
+  if(tab!=='budget')return twd(twdSrc(tab,r));
+  var raw=twdSrc(tab,r);
+  if(raw===''||raw==null||!Number(raw))return '—';
+  var cu=r.cur||'CNY',base=toCny(raw,cu);
+  return CUR_KEYS.filter(function(k){return k!==cu;})
+    .map(function(k){return money(inCur(base,k),k);}).join(' · ');
+}
 function cellFor(row,col,tab){
   var td=el('td');
   if(col.w)td.style.minWidth=col.w+'px';
-  if(col.t==='twd'){
+  if(col.t==='twd'||col.t==='conv'){
     td.className='twd';td.dataset.twd=row.id;td.dataset.twdtab=tab;
-    td.textContent=twd(twdSrc(tab,row));
+    td.textContent=convText(tab,row);
+    return td;
+  }
+  /* 只有兩三個選項的欄位用按鈕，點一下換下一個，不開下拉 */
+  if(col.t==='toggle'){
+    var opts=col.o||[],cur=row[col.k]||opts[0]||'';
+    var tb=el('button','tog tg-'+cur,col.m?(col.m[cur]||cur):cur);
+    tb.dataset.tog=row.id;tb.dataset.k=col.k;tb.dataset.tab=tab;
+    tb.title='點一下切換：'+opts.map(function(o){return col.m?(col.m[o]||o):o;}).join(' / ');
+    td.appendChild(tb);
     return td;
   }
   var inp;
@@ -596,14 +628,14 @@ function buildTable(tab){
   var sch=SCHEMAS[tab];
   var wrap=el('div','tw'),tb=el('table'),thead=el('thead'),htr=el('tr');
   sch.cols.forEach(function(c){htr.appendChild(el('th',null,c.l));});
-  htr.appendChild(el('th',null,''));
+  htr.appendChild(el('th','act','刪除'));
   thead.appendChild(htr);tb.appendChild(thead);
   var body=el('tbody');
   state[tab].forEach(function(r){
     if(!passFilter(tab,r))return;
     var tr=el('tr');
     sch.cols.forEach(function(c){tr.appendChild(cellFor(r,c,tab));});
-    var tdd=el('td');
+    var tdd=el('td','act');
     tdd.appendChild(delBtn(r.id,tab));tr.appendChild(tdd);
     body.appendChild(tr);
   });
@@ -614,7 +646,7 @@ function addRow(tab){
   var r={id:uid()};
   SCHEMAS[tab].cols.forEach(function(c){if(c.t!=='twd')r[c.k]=c.t==='select'?(c.o[0]||''):'';});
   if(tab==='guests'){r.go='待定';r.n=1;r.side=filt.guests.side||'男方';}
-  if(tab==='budget'){r.kind=filt.budget.kind||'支出';r.status='未付';r.plan='';r.real='';r.paid='';}
+  if(tab==='budget'){r.kind=filt.budget.kind||'支出';r.cur='CNY';r.status='未付';r.plan='';r.real='';r.paid='';}
   if(tab==='ideas'){r.date=todayISO();r.type='靈感';r.status='待議';}
   if(tab==='docs')r.status='未開始';
   state[tab].push(r);save();render();
@@ -1349,18 +1381,24 @@ function renderVendors(p){
 function fxBox(){
   var w=el('span','fx');
   w.appendChild(el('span',null,'匯率 1 CNY ='));
-  var i=el('input');i.type='number';i.step='0.01';i.value=fx();
-  i.addEventListener('input',function(){
-    var v=Number(i.value);if(v>0){state.fx=v;save();refreshTwd();}
-  });
-  w.appendChild(i);
+  function rate(get,set,step){
+    var i=el('input');i.type='number';i.step=step;i.value=get();
+    i.addEventListener('input',function(){
+      var v=Number(i.value);if(v>0){set(v);save();refreshTwd();}
+    });
+    return i;
+  }
+  w.appendChild(rate(fx,function(v){state.fx=v;},'0.01'));
   w.appendChild(el('span',null,'TWD'));
+  w.appendChild(el('span','sep','·'));
+  w.appendChild(rate(fxj,function(v){state.fxj=v;},'0.1'));
+  w.appendChild(el('span',null,'JPY'));
   return w;
 }
 function refreshTwd(){
   [].forEach.call(document.querySelectorAll('[data-twd]'),function(td){
     var tab=td.dataset.twdtab,r=state[tab].filter(function(x){return x.id===td.dataset.twd;})[0];
-    if(r)td.textContent=twd(twdSrc(tab,r));
+    if(r)td.textContent=convText(tab,r);
   });
   [].forEach.call(document.querySelectorAll('[data-twdp]'),function(sp){
     var r=state.vendors.filter(function(x){return x.id===sp.dataset.twdp;})[0];
@@ -1487,7 +1525,15 @@ function render(){
     f.appendChild(sel(['男方','女方','共同'],filt.guests.side,function(v){filt.guests.side=v;},'男女方全部'));
     f.appendChild(el('span','hint','',''));
   }
-  if(tab==='budget')f.appendChild(sel(['支出','收入'],filt.budget.kind,function(v){filt.budget.kind=v;},'收支全部'));
+  if(tab==='budget'){
+    var seg=el('span','seg');
+    [['','全部'],['支出','支出'],['收入','收入']].forEach(function(o){
+      var sb=el('button','segb'+(filt.budget.kind===o[0]?' on':''),o[1]);
+      sb.addEventListener('click',function(){filt.budget.kind=o[0];render();});
+      seg.appendChild(sb);
+    });
+    f.appendChild(seg);
+  }
   if(tab==='budget'||tab==='guests'){
     var sum=el('span','hint');sum.id='sum';f.appendChild(sum);
     f.appendChild(el('span','spacer'));
@@ -1502,7 +1548,7 @@ function render(){
   p.appendChild(add);
   if(tab==='docs')p.appendChild(el('div','legend','兩岸婚姻登記的材料與流程會調整，這裡只是提醒清單，實際以民政局、戶政事務所和海基會當次公告為準。'));
   if(tab==='dayplan')p.appendChild(el('div','legend','建議排完後印三份：統籌一份、雙方父母各一份。留 30 分鐘緩衝，一定會用上。'));
-  if(tab==='budget')p.appendChild(el('div','legend','金額一律填人民幣，台幣欄依匯率自動換算。匯率預設 4.70（2026 年 9 月約值），實際結匯以當天銀行牌價為準，可以隨時改。'));
+  if(tab==='budget')p.appendChild(el('div','legend','幣別欄點一下換：¥ 人民幣 → NT$ 台幣 → JP¥ 日圓，該列的預算、實際、已付就都按這個幣別算。上面的合計一律折成人民幣再加總，所以混幣別也能看總盤。匯率預設 1 CNY = 4.70 TWD = 21 JPY（2026 年 9 月的約值），實際結匯以當天銀行牌價為準，隨時可以改。'));
 }
 
 /* ================= 雙人同步設定面板 ================= */
@@ -1709,6 +1755,17 @@ document.addEventListener('click',function(e){
   if(d.stepdel){
     var pr=state.rundown.filter(function(x){return x.id===d.pid;})[0];
     if(pr){pr.steps=pr.steps.filter(function(x){return x.id!==d.stepdel;});save();render();}
+    return;
+  }
+  if(d.tog){
+    var tcol=null;
+    (SCHEMAS[d.tab]?SCHEMAS[d.tab].cols:[]).forEach(function(c){if(c.k===d.k)tcol=c;});
+    var trow=state[d.tab].filter(function(x){return x.id===d.tog;})[0];
+    if(trow&&tcol){
+      var os=tcol.o||[],ix=os.indexOf(trow[d.k]);
+      trow[d.k]=os[(ix+1)%os.length]||os[0];
+      save();render();
+    }
     return;
   }
   if(d.del){

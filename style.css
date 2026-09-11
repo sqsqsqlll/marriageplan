@@ -96,7 +96,13 @@ nav{display:flex;gap:0;overflow-x:auto;border-bottom:1px solid var(--rule);margi
 .filters select,.filters input{border:1px solid var(--rule);background:var(--stone);border-radius:0;padding:5px 8px;font:inherit;font-size:12.5px;color:var(--paper)}
 .filters .hint{margin:0}
 .spacer{flex:1}
+.seg{display:inline-flex;border:1px solid var(--rule)}
+.segb{border:none;background:transparent;color:var(--muted);font:inherit;font-size:12.5px;padding:5px 12px;cursor:pointer}
+.segb+.segb{border-left:1px solid var(--rule)}
+.segb:hover{color:var(--paper)}
+.segb.on{background:var(--field);color:var(--gold)}
 .fx{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.fx .sep{color:var(--rule)}
 .fx input{width:66px;text-align:right;font-variant-numeric:tabular-nums}
 
 /* ---- 表格 ---- */
@@ -112,6 +118,13 @@ td select{-webkit-appearance:none;appearance:none;cursor:pointer}
 td option{background:var(--stone);color:var(--paper)}
 td.num input{text-align:right;font-variant-numeric:tabular-nums}
 td.twd{padding:0 10px;text-align:right;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tog{width:100%;text-align:left;border:none;background:transparent;font:inherit;font-size:13px;color:var(--paper);padding:7px 10px;cursor:pointer;border-bottom:1px dotted var(--rule)}
+.tog:hover{background:var(--field);color:var(--gold)}
+.tog:active{background:var(--field)}
+.tg-收入{color:var(--gold)}
+/* 刪除欄釘在右緣，表再寬也點得到 */
+th.act,td.act{position:sticky;right:0;background:var(--stone);border-left:1px solid var(--rule-2);text-align:center;padding:0 2px;white-space:nowrap}
+th.act{z-index:2}
 .del{border:none;background:none;color:var(--muted);font-size:15px;line-height:1;padding:6px 9px}
 .del:hover{color:var(--chop)}
 .rowadd{margin-top:8px}
@@ -314,8 +327,7 @@ td.twd{padding:0 10px;text-align:right;font-size:12.5px;color:var(--muted);font-
 .cbar[hidden]{display:none}
 .del.confirm{color:var(--chop);font-size:12px;padding:4px 6px;border:1px solid var(--chop)}
 .btn.confirm{color:var(--chop);border-color:var(--chop)}
-footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--rule-2);display:flex;justify-content:flex-end}
-.chop{flex:none;width:38px;height:38px;background:var(--chop);color:var(--paper);display:flex;align-items:center;justify-content:center;font-family:"Songti TC","Songti SC",serif;font-size:19px}
+
 
 @media (max-width:820px){
   .wrap{padding:0 14px 60px}
@@ -364,7 +376,7 @@ footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--rule-2);displ
 @media print{
   :root{color-scheme:light}
   body{background:#fff;color:#111}
-  nav,.subnav,.toolbar,.filters,.del,.exp,.rowadd,.addday,.chop{display:none!important}
+  nav,.subnav,.toolbar,.filters,.del,.exp,.rowadd,.addday,td.act,th.act{display:none!important}
   .tw,.vwrap,.day,.vend,.cell,.soon,.principles{background:#fff;border-color:#bbb}
   th,td,input,select,textarea{color:#111!important}
   .daybody,.detail{display:block!important}
