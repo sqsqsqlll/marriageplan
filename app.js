@@ -232,7 +232,7 @@ var state=null,timer=null;
 var view={g:'dash',s:null};
 var lastSub={plan:'rundown',banquet:'dayplan'};
 var openDays={},openTasks={},openVend={},openFlow={};
-var filt={rundown:{status:'',owner:'',q:''},guests:{side:''},vendors:{cat:''},budget:{kind:''}};
+var filt={rundown:{status:'',owner:'',q:'',late:false},guests:{side:''},vendors:{cat:''},budget:{kind:''}};
 
 function newVendor(cat){
   var r={id:uid(),cat:cat||VCATS[0],name:'',who:'',free:'待問',price:'',status:'候選',note:'',why_m:'',why_h:''};
@@ -481,13 +481,26 @@ function guestStats(){
   });
   return s;
 }
-function overdueCount(){
-  var n=0;
-  state.rundown.forEach(function(r){
-    if(r.status==='已完成'||r.status==='已取消')return;
-    var d=daysTo(r.date);if(d!==null&&d<0)n++;
-  });
-  return n;
+/* 逾期 = 日子過了、又還沒做完也沒取消。回傳逾期幾天，沒逾期回 0 */
+function lateBy(r){
+  if(!r||r.status==='已完成'||r.status==='已取消')return 0;
+  var d=daysTo(r.date);
+  return (d!==null&&d<0)?-d:0;
+}
+function overdueList(){
+  return state.rundown.filter(function(r){return lateBy(r)>0;})
+    .sort(function(a,b){return lateBy(b)-lateBy(a);});
+}
+function overdueCount(){return overdueList().length;}
+/* 跳到某一條事項並展開 */
+function gotoTask(r){
+  if(!r)return;
+  view.g='plan';view.s='rundown';lastSub.plan='rundown';
+  openDays[r.date||'未定日期']=true;openTasks[r.id]=true;
+  render();
+  var n=document.querySelector('[data-rowid="'+r.id+'"]');
+  if(n)n.scrollIntoView({block:'center'});
+  else document.getElementById('panel').scrollIntoView({block:'start'});
 }
 
 /* ================= 題頭 ================= */
@@ -534,11 +547,7 @@ function renderBrief(){
   b1.appendChild(el('span','lb',nt&&daysTo(nt.date)<0?'逾期未做':'下一件事'));
   if(nt){
     var btn=el('button','go',fmtMD(nt.date)+'　'+(nt.task||'（未命名事項）')+(nt.owner?'　'+nt.owner:''));
-    btn.addEventListener('click',function(){
-      view.g='plan';view.s='rundown';lastSub.plan='rundown';
-      openDays[nt.date||'未定日期']=true;openTasks[nt.id]=true;
-      render();document.getElementById('panel').scrollIntoView({block:'start'});
-    });
+    btn.addEventListener('click',function(){gotoTask(nt);});
     b1.appendChild(btn);
   }else b1.appendChild(el('span',null,'沒有待辦了'));
   box.appendChild(b1);
@@ -559,6 +568,7 @@ function renderBrief(){
 function passFilter(tab,r){
   if(tab==='rundown'){
     var f=filt.rundown;
+    if(f.late&&!lateBy(r))return false;
     if(f.status&&r.status!==f.status)return false;
     if(f.owner&&r.owner!==f.owner)return false;
     if(f.q){var q=f.q.toLowerCase();
@@ -970,7 +980,8 @@ function renderDayplan(p){
 
 function taskEl(r){
   var wrap=el('div');
-  var row=el('div','task drow'+(r.status==='已完成'?' done':'')+(r.ms?' ms':''));
+  var lag=lateBy(r);
+  var row=el('div','task drow'+(r.status==='已完成'?' done':'')+(r.ms?' ms':'')+(lag?' late':''));
   row.dataset.taskid=r.id;row.dataset.rowid=r.id;row.dataset.list='rundown';
 
   var hd=el('div','handle','⠿');hd.title='按住上下拖動排序';
@@ -984,6 +995,7 @@ function taskEl(r){
 
   var tw=el('div','tkwrap');
   if(r.ms)tw.appendChild(el('span','mstag','里程碑'));
+  if(lag)tw.appendChild(el('span','latetag','逾期 '+lag+' 天'));
   var tk=el('input','tk');tk.value=r.task||'';tk.placeholder='這件事是……';
   tk.dataset.id=r.id;tk.dataset.k='task';tk.dataset.tab='rundown';
   tw.appendChild(tk);
@@ -1143,6 +1155,11 @@ function renderRundown(p){
     s.value=val||'';s.addEventListener('change',function(){on(s.value);render();});
     return s;
   }
+  var lateN=overdueCount();
+  var lb=el('button','btn'+(filt.rundown.late?' on':''),lateN?('只看逾期 '+lateN):'只看逾期');
+  lb.title=lateN?'只留下已經過期又沒做完的事':'目前沒有逾期的事';
+  lb.addEventListener('click',function(){filt.rundown.late=!filt.rundown.late;render();});
+  f.appendChild(lb);
   f.appendChild(sel(STATUS,filt.rundown.status,function(v){filt.rundown.status=v;},'全部狀態'));
   f.appendChild(sel(OWNERS,filt.rundown.owner,function(v){filt.rundown.owner=v;},'全部負責人'));
   var q=el('input');q.type='search';q.placeholder='搜尋事項 / 供應商 / 細節';q.value=filt.rundown.q;
@@ -1175,7 +1192,7 @@ function renderRundown(p){
     if(a==='未定日期')return 1;if(b==='未定日期')return -1;
     return a<b?-1:a>b?1:0;
   });
-  if(!keys.length)p.appendChild(el('p','hint','沒有符合條件的事項。換個篩選，或在下面加一天。'));
+  if(!keys.length)p.appendChild(el('p','hint',filt.rundown.late?'沒有逾期的事，這是好消息。':'沒有符合條件的事項。換個篩選，或在下面加一天。'));
 
   keys.forEach(function(k){
     var rows=map[k];
@@ -1205,10 +1222,12 @@ function renderRundown(p){
 
     var peek=el('div','peek');peek.dataset.day=k;
     rows.forEach(function(r){
-      var li=el('div','pk'+(r.status==='已完成'?' done':'')+(r.ms?' ms':''));
+      var plag=lateBy(r);
+      var li=el('div','pk'+(r.status==='已完成'?' done':'')+(r.ms?' ms':'')+(plag?' late':''));
       li.appendChild(el('span','pkdot'));
       if(r.time)li.appendChild(el('span','pkt',r.time));
       li.appendChild(el('span','pkname',r.task||'（未命名事項）'));
+      if(plag)li.appendChild(el('span','pklag','逾期 '+plag+' 天'));
       if(r.owner)li.appendChild(el('span','pkown',r.owner));
       peek.appendChild(li);
     });
@@ -1423,6 +1442,35 @@ function renderDash(p){
   var done=0,total=state.rundown.length;
   state.rundown.forEach(function(r){if(r.status==='已完成')done++;});
   var over=overdueCount(),b=budgetTotals(),g=guestStats();
+
+  var late=overdueList();
+  if(late.length){
+    var ob=el('div','odbox');
+    var oh=el('h3',null,'逾期未辦');
+    oh.appendChild(el('span','n',late.length+' 件'));
+    oh.appendChild(el('span','grow'));
+    oh.appendChild(el('span','lb','點一下直接去處理'));
+    ob.appendChild(oh);
+    late.slice(0,12).forEach(function(r){
+      var row=el('button','odrow');
+      row.appendChild(el('span','dd',r.date?fmtMD(r.date):'—'));
+      row.appendChild(el('span','lag','逾期 '+lateBy(r)+' 天'));
+      row.appendChild(el('span','nm',r.task||'（未命名事項）'));
+      if(r.owner)row.appendChild(el('span','ow',r.owner));
+      row.addEventListener('click',function(){gotoTask(r);});
+      ob.appendChild(row);
+    });
+    if(late.length>12){
+      var more=el('button','odrow odmore','還有 '+(late.length-12)+' 件逾期，去「所有事項」看全部 →');
+      more.addEventListener('click',function(){
+        filt.rundown.late=true;filt.rundown.status='';filt.rundown.owner='';filt.rundown.q='';
+        view.g='plan';view.s='rundown';lastSub.plan='rundown';
+        render();document.getElementById('panel').scrollIntoView({block:'start'});
+      });
+      ob.appendChild(more);
+    }
+    p.appendChild(ob);
+  }
 
   var grid=el('div','grid');
   function cell(k,v,sub,nt,pct,isOver){
