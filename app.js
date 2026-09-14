@@ -11,6 +11,9 @@ var CUR_KEYS=['CNY','TWD','JPY'];
 var OWNERS=['毛','哈利','雙方','男方父母','女方父母','親友','伴郎伴娘','供應商','待定'];
 var CATS=['證件登記','場地餐飲','婚紗禮服','妝造','攝影','錄影','婚慶佈置','主持','喜糖伴手禮','三金對戒','喜帖賓客','習俗禮節','婚車交通','住宿接待','蜜月','其他'];
 var STATUS=['未開始','進行中','待確認','已完成','已取消'];
+var ICATS=['服裝','鞋襪','首飾三金','妝造','捧花胸花','佈置','喜帖紅包','喜糖伴手禮','證件文件','交通住宿','其他'];
+var ISTATUS=['待買','已下單','已到','已試過','要退','不用了'];
+var IWHO=['毛','哈利','雙方','男方父母','女方父母','伴郎伴娘','賓客','公用'];
 var VCATS=['跟拍','婚紗/旅拍','婚紗禮服','秀禾/旗袍','妝造跟妝','攝影','錄影','主持','場地酒店','婚慶統籌','花藝佈置','喜糖伴手禮','喜帖','三金對戒','婚車','樂隊/表演','其他'];
 var DIMS=[{k:'work',l:'作品匹配',w:.35},{k:'price',l:'價格',w:.20},{k:'comm',l:'溝通',w:.20},{k:'rep',l:'口碑',w:.15},{k:'deal',l:'合約條款',w:.10}];
 var WD=['日','一','二','三','四','五','六'];
@@ -31,10 +34,10 @@ var GROUPS=[
   {k:'plan',n:'所有事項',subs:[{k:'rundown',n:'事件安排'},{k:'customs',n:'習俗對齊'},{k:'docs',n:'證件準備'}]},
   {k:'banquet',n:'婚宴',subs:[{k:'dayplan',n:'流程'},{k:'guests',n:'賓客名單'},{k:'contacts',n:'應急通訊'}]},
   {k:'vendors',n:'供應商篩選池'},
-  {k:'budget',n:'預算與花費'}
+  {k:'budget',n:'預算與花費',subs:[{k:'budget',n:'預算明細'},{k:'items',n:'物料表'}]}
 ];
 
-var TITLES={rundown:'事件安排',docs:'證件準備',customs:'習俗對齊',ideas:'想法記錄',guests:'賓客名單',dayplan:'婚宴流程',contacts:'應急通訊',vendors:'供應商篩選池',budget:'預算與花費'};
+var TITLES={rundown:'事件安排',docs:'證件準備',customs:'習俗對齊',ideas:'想法記錄',guests:'賓客名單',dayplan:'婚宴流程',contacts:'應急通訊',vendors:'供應商篩選池',budget:'預算與花費',items:'物料表'};
 var HINTS={
   rundown:'按天摺疊。點開一天，裡面一行一件事，做完打勾。每件事還能再展開，填細節和拆子步驟。',
   docs:'兩岸領證的材料有時效（單身證明通常三個月內有效），公證和驗證都要排隊，寧可早辦。清單以登記機關當次公告為準。',
@@ -44,7 +47,8 @@ var HINTS={
   dayplan:'婚宴當天的分鐘級流程。定稿後印給統籌、攝影、化妝師和雙方父母各一份。',
   contacts:'婚禮當天手忙腳亂時，能一屏找到所有人的電話。',
   vendors:'同一類至少比三家。五個維度毛和哈利各自打分，兩人分數差得多的地方，就是該坐下來聊的地方。',
-  budget:'收入列記禮金和父母贊助，支出列記花費。每一列各自選幣別——人民幣、台幣、日圓都能直接填，折算欄會換出另外兩種，統計一律折成人民幣。'
+  budget:'收入列記禮金和父母贊助，支出列記花費。每一列各自選幣別——人民幣、台幣、日圓都能直接填，折算欄會換出另外兩種，統計一律折成人民幣。',
+  items:'零零碎碎要準備的東西都丟進來：衣服鞋襪、首飾、捧花、紅包袋、簽到本……每樣記多少錢、誰付的，還能掛到對應的那件事上。'
 };
 
 /* ================= 表結構 ================= */
@@ -53,6 +57,7 @@ var SCHEMAS={
   dayplan:{cols:[c('time','時間','text',null,86),c('lucky','吉時','text',null,80),c('item','環節','text',null,200),c('place','地點','text',null,146),c('who','參與人','text',null,146),c('owner','負責人','select',OWNERS,98),c('need','物料/供應商','text',null,176),c('note','備註','text',null,196)]},
   ideas:{cols:[c('date','記錄日','date',null,130),c('type','性質','select',['靈感','要做','不做','待決策','已決定','踩坑'],98),c('title','標題','text',null,196),c('body','內容','textarea',null,320),c('by','提出人','select',OWNERS,98),c('link','參考連結','text',null,166),c('status','狀態','select',['待議','採納','擱置','已落地'],90)]},
   budget:{cols:[c('cat','類別','select',CATS,112),c('item','項目','text',null,196),c('kind','收支','toggle',['支出','收入'],76),c('cur','幣別','toggle',CUR_KEYS,70,CUR_SYM),c('plan','預算','number',null,92),c('real','實際','number',null,92),c('paid','已付','number',null,92),c('conv','折算','conv',null,152),c('payer','付款/收款方','select',OWNERS,108),c('to','對方/供應商','text',null,146),c('status','狀態','select',['未付','定金已付','尾款待付','已結清','待收'],102),c('note','備註','text',null,176)]},
+  items:{cols:[c('cat','類別','select',ICATS,104),c('item','物件','text',null,190),c('forwho','誰用','select',IWHO,92),c('tid','關聯事項','task',null,172),c('qty','數量','number',null,62),c('cur','幣別','toggle',CUR_KEYS,70,CUR_SYM),c('cost','花費','number',null,92),c('payer','誰付的','select',OWNERS,100),c('conv','折算','conv',null,148),c('status','狀態','select',ISTATUS,92),c('where','購買處 / 連結','text',null,168),c('note','備註','text',null,160)]},
   guests:{cols:[c('side','方','select',['男方','女方','共同'],74),c('name','姓名','text',null,108),c('rel','與主人關係','text',null,126),c('liaison','對接人','select',OWNERS,98),c('go','出席','select',['待定','出席','不出席','線上'],86),c('n','人數','number',null,68),c('table','桌次','text',null,68),c('gift','禮金 ¥','number',null,92),c('twd','折台幣','twd',null,96),c('back','回禮/伴手禮','text',null,112),c('tel','聯絡方式','text',null,136),c('note','備註','text',null,156)]},
   docs:{cols:[c('item','事項','text',null,186),c('who','適用方','select',['毛','哈利','雙方'],86),c('need','所需材料','textarea',null,300),c('org','辦理機構','text',null,156),c('due','截止/時效','text',null,136),c('owner','負責人','select',OWNERS,96),c('status','狀態','select',STATUS,92),c('note','備註','text',null,176)]},
   customs:{cols:[c('item','環節','text',null,146),c('gz','廣東習俗','textarea',null,246),c('tw','台灣習俗','textarea',null,246),c('deal','共識方案','textarea',null,246),c('owner','協調人','select',OWNERS,96),c('status','狀態','select',['待談','溝通中','已共識','擱置'],92)]},
@@ -227,12 +232,31 @@ function money(n,cur){return (CUR_SYM[cur]||'¥')+fmtN(n);}
 function fmtMD(s){var p=String(s).split('-');return (+p[1])+'/'+(+p[2]);}
 function todayISO(){var d=new Date(),m=('0'+(d.getMonth()+1)).slice(-2),dd=('0'+d.getDate()).slice(-2);return d.getFullYear()+'-'+m+'-'+dd;}
 
+var DEFAULT_ITEMS=[
+  ['服裝','新娘秀禾服 / 敬酒服','毛','毛','待買',''],
+  ['服裝','新郎西裝 / 唐裝','哈利','哈利','待買',''],
+  ['鞋襪','新娘婚鞋（另備一雙平底）','毛','毛','待買','站一整天，平底那雙一定要'],
+  ['鞋襪','新郎皮鞋','哈利','哈利','待買',''],
+  ['首飾三金','三金：龍鳳鐲 / 項鍊 / 耳環','毛','男方父母','待買',''],
+  ['首飾三金','對戒','雙方','雙方','待買',''],
+  ['捧花胸花','新娘捧花 + 新郎胸花','雙方','雙方','待買',''],
+  ['喜帖紅包','紅包袋 / 利是封','雙方','雙方','待買','多備一些，當天一定不夠'],
+  ['喜糖伴手禮','伴手禮袋','雙方','雙方','待買',''],
+  ['佈置','簽到本 / 簽名筆','雙方','雙方','待買',''],
+  ['證件文件','證件照 / 身分證影本','雙方','雙方','待買','領證和登記都要用，多洗幾張']
+];
+function freshItems(){
+  return DEFAULT_ITEMS.map(function(a){
+    return {id:uid(),cat:a[0],item:a[1],forwho:a[2],tid:'',qty:1,cur:'CNY',cost:'',payer:a[3],status:a[4],where:'',note:a[5]};
+  });
+}
+
 /* ================= 狀態 ================= */
 var state=null,timer=null;
 var view={g:'dash',s:null};
-var lastSub={plan:'rundown',banquet:'dayplan'};
-var openDays={},openTasks={},openVend={},openFlow={};
-var filt={rundown:{status:'',owner:'',q:'',late:false},guests:{side:''},vendors:{cat:''},budget:{kind:''}};
+var lastSub={plan:'rundown',banquet:'dayplan',budget:'budget'};
+var openDays={},openTasks={},openVend={},openFlow={},stepsShut={};
+var filt={rundown:{status:'',owner:'',q:'',late:false},guests:{side:''},vendors:{cat:''},budget:{kind:''},items:{cat:''}};
 
 function newVendor(cat){
   var r={id:uid(),cat:cat||VCATS[0],name:'',who:'',free:'待問',price:'',status:'候選',note:'',why_m:'',why_h:''};
@@ -249,6 +273,7 @@ function fresh(){
     }),
     dayplan:DEFAULT_DAYPLAN.map(function(a){return {id:uid(),time:a[0],lucky:a[1],item:a[2],place:a[3],who:a[4],owner:a[5],need:a[6],note:a[7],cids:[],vids:[]};}),
     ideas:DEFAULT_IDEAS.map(function(a){return {id:uid(),date:a[0],type:a[1],title:a[2],body:a[3],by:a[4],link:a[5],status:a[6]};}),
+    items:freshItems(),
     budget:DEFAULT_BUDGET.map(function(a){return {id:uid(),cat:a[0],item:a[1],kind:a[2],cur:'CNY',plan:'',real:'',paid:'',payer:a[3],to:a[4],status:a[5],note:a[6]};}),
     guests:[{id:uid(),side:'男方',name:'',rel:'',liaison:'哈利',go:'待定',n:1,table:'',gift:'',back:'',tel:'',note:''},
             {id:uid(),side:'女方',name:'',rel:'',liaison:'毛',go:'待定',n:1,table:'',gift:'',back:'',tel:'',note:''}],
@@ -264,6 +289,8 @@ function migrate(s){
   if(!s.fxj)s.fxj=FXJ_DEFAULT;
   /* 拆幣別之前的資料一律是人民幣 */
   (s.budget||[]).forEach(function(r){if(!r.cur)r.cur='CNY';});
+  if(!s.items)s.items=freshItems();
+  s.items.forEach(function(r){if(!r.cur)r.cur='CNY';if(r.tid==null)r.tid='';});
   (s.rundown||[]).forEach(function(r){
     if(r.steps==null)r.steps=[];
     if(r.detail==null)r.detail=r.note||'';
@@ -469,6 +496,19 @@ function budgetTotals(){
   });
   return t;
 }
+/* 物料：一共幾件、花了多少、各人付了多少 */
+function itemTotals(){
+  var t={n:0,total:0,by:{}};
+  (state.items||[]).forEach(function(r){
+    t.n++;
+    var v=toCny(r.cost,r.cur||'CNY');
+    if(!v)return;
+    t.total+=v;
+    var k=r.payer||'未指定';
+    t.by[k]=(t.by[k]||0)+v;
+  });
+  return t;
+}
 function guestStats(){
   var s={m:0,f:0,go:0,n:0,gift:0,pend:0};
   state.guests.forEach(function(r){
@@ -579,16 +619,18 @@ function passFilter(tab,r){
   if(tab==='guests'&&filt.guests.side&&r.side!==filt.guests.side)return false;
   if(tab==='vendors'&&filt.vendors.cat&&r.cat!==filt.vendors.cat)return false;
   if(tab==='budget'&&filt.budget.kind&&r.kind!==filt.budget.kind)return false;
+  if(tab==='items'&&filt.items.cat&&r.cat!==filt.items.cat)return false;
   return true;
 }
 function twdSrc(tab,r){
   if(tab==='budget')return (r.real!==''&&r.real!=null)?r.real:r.plan;
+  if(tab==='items')return r.cost;
   if(tab==='guests')return r.gift;
   return 0;
 }
 /* 折算欄：這一列填的是哪種幣別，就換算出另外兩種 */
 function convText(tab,r){
-  if(tab!=='budget')return twd(twdSrc(tab,r));
+  if(tab!=='budget'&&tab!=='items')return twd(twdSrc(tab,r));
   var raw=twdSrc(tab,r);
   if(raw===''||raw==null||!Number(raw))return '—';
   var cu=r.cur||'CNY',base=toCny(raw,cu);
@@ -601,6 +643,22 @@ function cellFor(row,col,tab){
   if(col.t==='twd'||col.t==='conv'){
     td.className='twd';td.dataset.twd=row.id;td.dataset.twdtab=tab;
     td.textContent=convText(tab,row);
+    return td;
+  }
+  if(col.t==='task'){
+    var ts=el('select','tasksel');
+    var o0=el('option',null,'— 不掛事項 —');o0.value='';ts.appendChild(o0);
+    state.rundown.slice().sort(function(a,b){return (a.date||'9999')<(b.date||'9999')?-1:1;})
+      .forEach(function(tk){
+        var op=el('option',null,(tk.date?fmtMD(tk.date)+'　':'')+(tk.task||'（未命名事項）'));
+        op.value=tk.id;ts.appendChild(op);
+      });
+    if(row[col.k]&&!state.rundown.some(function(x){return x.id===row[col.k];})){
+      var og=el('option',null,'（事項已刪除）');og.value=row[col.k];ts.appendChild(og);
+    }
+    ts.value=row[col.k]||'';
+    ts.dataset.id=row.id;ts.dataset.k=col.k;ts.dataset.tab=tab;
+    td.appendChild(ts);
     return td;
   }
   /* 只有兩三個選項的欄位用按鈕，點一下換下一個，不開下拉 */
@@ -657,6 +715,7 @@ function addRow(tab){
   SCHEMAS[tab].cols.forEach(function(c){if(c.t!=='twd')r[c.k]=c.t==='select'?(c.o[0]||''):'';});
   if(tab==='guests'){r.go='待定';r.n=1;r.side=filt.guests.side||'男方';}
   if(tab==='budget'){r.kind=filt.budget.kind||'支出';r.cur='CNY';r.status='未付';r.plan='';r.real='';r.paid='';}
+  if(tab==='items'){r.cat=filt.items.cat||ICATS[0];r.cur='CNY';r.qty=1;r.status='待買';r.cost='';r.tid='';}
   if(tab==='ideas'){r.date=todayISO();r.type='靈感';r.status='待議';}
   if(tab==='docs')r.status='未開始';
   state[tab].push(r);save();render();
@@ -1028,6 +1087,26 @@ function taskEl(r){
   ex.dataset.exp=r.id;ex.title='展開細節';
   row.appendChild(ex);
   wrap.appendChild(row);
+
+  /* 有子步驟就直接攤在事項底下，不用展開細節也看得到還剩什麼。
+     細節展開時那邊已經有一份，這裡就不重複畫。 */
+  if(nSteps&&!openTasks[r.id]){
+    var sdone=(r.steps||[]).filter(function(x){return x.done;}).length;
+    var shut=!!stepsShut[r.id];
+    var sub=el('div','substeps');sub.dataset.subfor=r.id;
+    var tg=el('button','subtog',(shut?'▸':'▾')+' 子步驟 '+sdone+' / '+nSteps);
+    tg.dataset.stog=r.id;tg.title=shut?'展開子步驟':'收起子步驟';
+    sub.appendChild(tg);
+    if(!shut)(r.steps||[]).forEach(function(st0){
+      var st=el('div','step'+(st0.done?' done':''));
+      var sc=el('input');sc.type='checkbox';sc.checked=!!st0.done;sc.dataset.stepchk=st0.id;sc.dataset.pid=r.id;
+      var si=el('input');si.type='text';si.value=st0.t||'';si.dataset.steptxt=st0.id;si.dataset.pid=r.id;
+      var sd=el('button','del','×');sd.dataset.stepdel=st0.id;sd.dataset.pid=r.id;
+      st.appendChild(sc);st.appendChild(si);st.appendChild(sd);
+      sub.appendChild(st);
+    });
+    wrap.appendChild(sub);
+  }
 
   if(openTasks[r.id]){
     var d=el('div','detail');
@@ -1434,6 +1513,10 @@ function updateSummary(){
   }else if(tab==='guests'){
     var g=guestStats();
     box.textContent='確認出席 '+g.n+' 人 · 約 '+Math.ceil(g.n/10)+' 桌 · 禮金合計 '+both(g.gift)+' · 待定 '+g.pend+' 戶';
+  }else if(tab==='items'){
+    var it=itemTotals(),who=Object.keys(it.by).sort(function(a,b){return it.by[b]-it.by[a];});
+    box.textContent='物料 '+it.n+' 件 · 花費合計 '+both(it.total)
+      +(who.length?' · '+who.map(function(k){return k+' '+cny(it.by[k]);}).join(' · '):'');
   }
 }
 
@@ -1573,6 +1656,7 @@ function render(){
     f.appendChild(sel(['男方','女方','共同'],filt.guests.side,function(v){filt.guests.side=v;},'男女方全部'));
     f.appendChild(el('span','hint','',''));
   }
+  if(tab==='items')f.appendChild(sel(ICATS,filt.items.cat,function(v){filt.items.cat=v;},'全部類別'));
   if(tab==='budget'){
     var seg=el('span','seg');
     [['','全部'],['支出','支出'],['收入','收入']].forEach(function(o){
@@ -1582,7 +1666,7 @@ function render(){
     });
     f.appendChild(seg);
   }
-  if(tab==='budget'||tab==='guests'){
+  if(tab==='budget'||tab==='guests'||tab==='items'){
     var sum=el('span','hint');sum.id='sum';f.appendChild(sum);
     f.appendChild(el('span','spacer'));
     f.appendChild(fxBox());
@@ -1596,6 +1680,7 @@ function render(){
   p.appendChild(add);
   if(tab==='docs')p.appendChild(el('div','legend','兩岸婚姻登記的材料與流程會調整，這裡只是提醒清單，實際以民政局、戶政事務所和海基會當次公告為準。'));
   if(tab==='dayplan')p.appendChild(el('div','legend','建議排完後印三份：統籌一份、雙方父母各一份。留 30 分鐘緩衝，一定會用上。'));
+  if(tab==='items')p.appendChild(el('div','legend','花費請填這一列的總價（數量算在裡面），幣別欄和預算頁一樣點一下換。「誰付的」會在上面加總成各人各付了多少，錢誰出的、事後怎麼分攤，這裡看得到。「關聯事項」把物件掛到某一件事上，例如婚鞋掛在「試婚紗」那天，到那天就知道要帶什麼。物料的花費不會算進預算頁的合計，兩邊各自獨立，免得同一筆重複計算。'));
   if(tab==='budget')p.appendChild(el('div','legend','幣別欄點一下換：¥ 人民幣 → NT$ 台幣 → JP¥ 日圓，該列的預算、實際、已付就都按這個幣別算。上面的合計一律折成人民幣再加總，所以混幣別也能看總盤。匯率預設 1 CNY = 4.70 TWD = 21 JPY（2026 年 9 月的約值），實際結匯以當天銀行牌價為準，隨時可以改。'));
 }
 
@@ -1725,7 +1810,8 @@ document.addEventListener('input',function(e){
   row[t.dataset.k]=t.value;
   if(t.tagName==='TEXTAREA'&&t.closest('td'))autoGrow(t);
   if(t.tagName==='SELECT'&&t.closest('td'))t.className='st-'+t.value;
-  if(['plan','real','paid','gift','price'].indexOf(t.dataset.k)>=0)refreshTwd();
+  if(['plan','real','paid','gift','price','cost'].indexOf(t.dataset.k)>=0
+     ||(tab==='items'&&t.dataset.k==='payer'))refreshTwd();
   save();
 },true);
 
@@ -1760,6 +1846,7 @@ document.addEventListener('click',function(e){
     return;
   }
   if(d.fexp){openFlow[d.fexp]=!openFlow[d.fexp];render();return;}
+  if(d.stog){stepsShut[d.stog]=!stepsShut[d.stog];render();return;}
   if(d.rmove){moveRow(d.rtab,d.rmove,d.dir);return;}
   if(d.unlink){
     var pr=state[d.untab].filter(function(x){return x.id===d.pid;})[0];
