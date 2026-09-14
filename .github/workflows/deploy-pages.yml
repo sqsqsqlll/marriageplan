@@ -37,6 +37,20 @@ jobs:
           node --check app.js || { echo "app.js has a syntax error"; exit 1; }
           echo "OK: $(wc -c < index.html) + $(wc -c < style.css) + $(wc -c < app.js) bytes"
 
+      # 檔名固定不變的話，瀏覽器會一直用快取裡那份舊的 app.js，
+      # 部署了新版也看不到。這裡在檔名後面蓋一個 commit 戳記，網址一變就一定重抓。
+      - name: Stamp asset versions
+        run: |
+          v="${GITHUB_SHA::7}"
+          sed -i "s|href=\"style.css\"|href=\"style.css?v=$v\"|" index.html
+          sed -i "s|src=\"app.js\"|src=\"app.js?v=$v\"|" index.html
+          sed -i "s|</title>|</title>\n<meta name=\"build\" content=\"$v\">|" index.html
+          grep -q "style.css?v=$v" index.html || { echo "stamping style.css failed"; exit 1; }
+          grep -q "app.js?v=$v" index.html || { echo "stamping app.js failed"; exit 1; }
+          grep -q "name=\"build\" content=\"$v\"" index.html || { echo "stamping build meta failed"; exit 1; }
+          echo "stamped $v"
+          grep -nE 'style.css|app.js|name="build"' index.html
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
